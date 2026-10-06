@@ -1,49 +1,49 @@
 #!/usr/bin/env bash
-# 一键拉起 **MongoDB 模式** 三件套（memory-core + memory-hub + proxy）。
-# 试验特性：默认关闭；默认入口仍是 ./start-all.sh（sqlite）。
+# Start the Memory stack in MongoDB mode (memory-core + memory-hub + optional adapters).
+# Experimental and disabled by default; ./start-all.sh still defaults to SQLite.
 #
-# 与 start-all.sh 的关系：
-#   - start-all.sh 保持原逻辑不变 —— 默认 sqlite，数据落容器卷；
-#   - 本脚本复用同一套流程，强制 MEMORY_CORE_STORE_MODE=mongodb 并写入 .env：
-#       · 数据面（L0/L1 记忆、profile、skill）走 MongoDB + mongot 原生 BM25；
-#       · 元数据（meta_* 团队/用户/agent/task）默认跟随落同一个 Mongo
+# Relationship to start-all.sh:
+# - start-all.sh defaults to SQLite with data stored in container volumes.
+# - This script reuses the same startup flow and writes MEMORY_CORE_STORE_MODE=mongodb to .env.
+# - The data plane (L0/L1 memories, profiles, and Skills) uses MongoDB with native mongot BM25.
+# - Metadata (meta_* teams/users/agents/tasks) follows the same MongoDB deployment by default,
 #         （MEMORY_CORE_METADATA_BACKEND=auto）；
-#       · .env 未设 MONGODB_ENDPOINT 时，自动在同网络起一个本地
-#         mongodb-atlas-local 容器（mongod + mongot 一体，卷 mongo-local-* 持久化）。
+# - When MONGODB_ENDPOINT is absent from .env, start a local container on the same network:
+# mongodb-atlas-local bundles mongod + mongot and persists data in mongo-local-* volumes.
 #
-# 用法（与 start-all.sh 完全一致）：
-#   ./start-all-mongo.sh            # 交互式引导 LLM，通过后一键起
-#   PULL=1 ./start-all-mongo.sh     # 先 docker pull 升级镜像
+# Usage (same as start-all.sh):
+# ./start-all-mongo.sh            # Configure LLM settings interactively, then start services.
+# PULL=1 ./start-all-mongo.sh     # Pull updated images first.
 #
-# 想回 sqlite：把 .env 里 MEMORY_CORE_STORE_MODE 注释掉或改为 sqlite，再 ./start-all.sh。
-# 切换后端不会迁移已有数据。
+# To return to SQLite, comment out MEMORY_CORE_STORE_MODE in .env or set it to sqlite, then run ./start-all.sh.
+# Switching storage backends does not migrate existing data.
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./_lib.sh
 source "$SCRIPT_DIR/_lib.sh"
 
-# .env 不存在时先从模板复制，才能把 STORE_MODE 写回去。
+# Create .env from the template before saving STORE_MODE.
 if [[ ! -f "$ENV_FILE" ]]; then
-  info ".env 不存在，从 .env.example 复制一份"
+  info ".env does not exist; copying .env.example"
   cp "$SCRIPT_DIR/.env.example" "$ENV_FILE"
 fi
 
-# 冲突检测：.env 里若**显式**设置了非 mongodb 的 MEMORY_CORE_STORE_MODE，
-# start-all.sh 里 source .env 会盖掉下面的 export，静默跑成别的模式 —— 提前拦下。
-# （.env.example 里该行默认注释，标准用户不会触发。）
+# Detect an explicitly configured non-MongoDB MEMORY_CORE_STORE_MODE in .env.
+# Sourcing .env in start-all.sh would override the export below and silently select another mode; reject that conflict.
+# The setting is commented out in .env.example, so a standard configuration does not trigger this check.
 env_mode=$(grep -E '^[[:space:]]*MEMORY_CORE_STORE_MODE=' "$ENV_FILE" \
   | tail -n1 | cut -d= -f2- | tr -d '[:space:]"' || true)
 if [[ -n "$env_mode" && "$env_mode" != "mongodb" ]]; then
-  echo "[error] .env 里显式设置了 MEMORY_CORE_STORE_MODE=$env_mode，与本脚本冲突。" >&2
-  echo "        二选一：" >&2
-  echo "          ① 想用 mongo：注释掉 .env 里该行，重跑本脚本；" >&2
-  echo "          ② 想用 $env_mode：直接 ./start-all.sh。" >&2
+  echo "[error] .env explicitly sets MEMORY_CORE_STORE_MODE=$env_mode, which conflicts with this script." >&2
+  echo "        Choose one:" >&2
+  echo "          ① To use MongoDB: comment out that .env line and rerun this script;" >&2
+  echo "          ② To use $env_mode: run ./start-all.sh directly." >&2
   exit 1
 fi
 
 set_env_value MEMORY_CORE_STORE_MODE mongodb "$ENV_FILE"
 export MEMORY_CORE_STORE_MODE=mongodb
-echo "[start-all-mongo] 已写入 MEMORY_CORE_STORE_MODE=mongodb 到 .env（数据面 + 元数据默认均落 MongoDB）"
+echo "[start-all-mongo] Saved MEMORY_CORE_STORE_MODE=mongodb in .env (data plane and metadata use MongoDB by default)."
 
 exec "$SCRIPT_DIR/start-all.sh" "$@"

@@ -14,6 +14,7 @@ export interface HttpClientOptions {
   baseUrl: string;
   /** Optional bearer token for auth. */
   token?: string;
+  serviceId?: string;
 }
 
 export interface ApiResponse {
@@ -35,6 +36,7 @@ export async function callApi(
 ): Promise<unknown> {
   const url = `${opts.baseUrl.replace(/\/$/, "")}/v3${endpoint}`;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
+  headers["x-tdai-service-id"] = opts.serviceId || "default";
   if (opts.token) headers["Authorization"] = `Bearer ${opts.token}`;
 
   log.debug(`POST ${url}`);

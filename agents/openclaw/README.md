@@ -1,14 +1,14 @@
 # OpenClaw
 
-> agentSource: `openclaw` | 协议: OpenAI Chat Completions | Session Init: Header 预选（无交互 Form）
+> agentSource: `openclaw` | Protocol: OpenAI Chat Completions | Session Init: Header preselection (no interactive form)
 >
-> 本地历史导入 Memory Hub：见 [资产导入手册](./asset-import.md)。
+> To import local history into Memory Hub, see the [asset import guide](./asset-import.md).
 
 ---
 
-## 1. 客户端接入配置
+## 1. Client configuration
 
-OpenClaw 通过**配置文件** `~/.openclaw/openclaw.json` 的 `models.providers` 段配置：
+OpenClaw is configured through the `models.providers` section of the **configuration file** `~/.openclaw/openclaw.json`:
 
 ```jsonc
 {
@@ -17,13 +17,13 @@ OpenClaw 通过**配置文件** `~/.openclaw/openclaw.json` 的 `models.provider
     "providers": {
       "memory-proxy": {
         "baseUrl": "http://<proxy-host>:8096/openclaw/<spaceId>",
-        "apiKey": "<业务用户的 sk-mem-... user_key>",
+        "apiKey": "<business user's sk-mem-... user_key>",
         "api": "openai-completions",
         "headers": {
-          "x-team-id": "<从面板获取的 team_id>",
-          "x-agent-id": "<从面板获取的 agent_id>",
-          "x-task-id": "<从面板获取的 task_id>",
-          "x-conversation-id": "<自定义的会话标识>"
+          "x-team-id": "<team_id-from-panel>",
+          "x-agent-id": "<agent_id-from-panel>",
+          "x-task-id": "<task_id-from-panel>",
+          "x-conversation-id": "<custom-conversation-identifier>"
         },
         "request": {
           "allowPrivateNetwork": true
@@ -45,82 +45,82 @@ OpenClaw 通过**配置文件** `~/.openclaw/openclaw.json` 的 `models.provider
 }
 ```
 
-字段说明：
-- `baseUrl` — Proxy 地址 + `/openclaw/<spaceId>`；`default` 是 memory 实例 ID
-- `apiKey` — 业务用户的 `user_key`（从面板获取）
-- `api` — 必须为 `"openai-completions"`
-- `headers` — 必须包含 `x-team-id`、`x-agent-id`、`x-task-id`、`x-conversation-id`
-- `models[].id` — 必须与 Proxy 上游配置的模型 ID 匹配
-- `allowPrivateNetwork: true` — 允许访问内网地址
+Field descriptions:
+- `baseUrl` — Proxy address + `/openclaw/<spaceId>`; `default` is the memory instance ID
+- `apiKey` — Business user's `user_key` (from the panel)
+- `api` — Must be `"openai-completions"`
+- `headers` — Must contain `x-team-id`, `x-agent-id`, `x-task-id`, and `x-conversation-id`
+- `models[].id` — Must match the model ID configured in the proxy upstream
+- `allowPrivateNetwork: true` — Allow access to private network addresses
 
-请求路径：`POST /openclaw/:spaceId/v1/chat/completions`
+Request path: `POST /openclaw/:spaceId/v1/chat/completions`
 
 ---
 
 ## 2. Session ID
 
-| 来源 | Header |
+| Source | Header |
 |------|--------|
-| 唯一 | `x-conversation-id`（用户在配置文件中静态指定） |
+| Only source | `x-conversation-id` (statically specified in the configuration file by the user) |
 
-与 Hermes 相同，OpenClaw 不自动管理 session ID，需手动更换。
+Like Hermes, OpenClaw does not manage session IDs automatically; change them manually.
 
 ---
 
-## 3. Session Init（会话初始化）
+## 3. Session Init (session initialization)
 
-### ⚠️ 核心差异：纯 Header 预选，无交互 Form
+### ⚠️ Key difference: Header preselection only, no interactive form
 
-OpenClaw 与 Hermes 完全相同 —— **不支持交互式表单**，Session 注册依赖 Header：
+OpenClaw behaves exactly like Hermes: **interactive forms are not supported**, and session registration depends on headers:
 
-| Header | 说明 | 必填 |
+| Header | Description | Required |
 |--------|------|------|
-| `x-team-id` | 团队 ID | ✅ |
+| `x-team-id` | Team ID | ✅ |
 | `x-agent-id` | Agent ID | ✅ |
-| `x-task-id` | Task ID | ✅（当前版本） |
-| `x-conversation-id` | 会话标识 | ✅ |
+| `x-task-id` | Task ID | ✅ (current version) |
+| `x-conversation-id` | Conversation identifier | ✅ |
 
-**处理逻辑**：
-- 四个 header 都存在且 valid → 直接注册 session，注入资产
-- 任一缺失 → session bypass（透传，不注入）
-
----
-
-## 4. 请求分类
-
-所有请求均为 **main**。OpenClaw 没有 auxiliary 请求概念。
+**Handling logic**:
+- All four headers present and valid → register the session directly and inject assets
+- Any missing → session bypass (pass through without injection)
 
 ---
 
-## 5. 注入 Profile
+## 4. Request classification
 
-与 CB 相同——XML 结构注入到 `messages[0].content`（system message）。
-
----
-
-## 6. 已知限制
-
-与 Hermes 完全相同：
-
-### `x-task-id` 当前必填
-
-缺少时 session bypass，记忆注入不生效。  
-解决：proxy 配 `sessionInit.defaultTaskId: "no-task"` 后填固定值。
-
-### `x-conversation-id` 需手动管理
-
-- 同 ID 共享 session；新对话需手动换值
-- 部分 tool call 后续轮次可能不携带 headers → 那些轮次跳过注入
+All requests are **main**. OpenClaw has no auxiliary request concept.
 
 ---
 
-## 7. 常见问题
+## 5. Injection profile
 
-**Q: 和 Hermes 有什么区别？**  
-A: 对 proxy 来说行为完全相同（都是 header 预选 + OpenAI Chat）。区别仅在客户端配置文件格式（YAML vs JSON）和 agentSource 标记不同。
+Same as CB: XML structured injection into `messages[0].content` (system message).
 
-**Q: models 里 cost 填 0 可以吗？**  
-A: 可以。OpenClaw 用 cost 做客户端侧预算计算，走 proxy 时实际计费在上游，客户端侧填 0 不影响功能。
+---
 
-**Q: `allowPrivateNetwork: true` 是什么？**  
-A: OpenClaw 默认禁止请求内网地址（安全策略）。加这个配置才能访问 `127.0.0.1` 或内网 IP 上的 proxy。
+## 6. Known limitations
+
+Exactly the same as Hermes:
+
+### `x-task-id` is currently required
+
+If missing, the session is bypassed and memory injection does not take effect.  
+Solution: configure `sessionInit.defaultTaskId: "no-task"` in the proxy and use that fixed value.
+
+### `x-conversation-id` requires manual management
+
+- Identical IDs share a session; change the value manually for new conversations
+- Some subsequent tool call turns may omit headers → those turns skip injection
+
+---
+
+## 7. FAQ
+
+**Q: How does it differ from Hermes?**  
+A: From the proxy's perspective, behavior is identical (header preselection + OpenAI Chat). Only the client configuration format (YAML vs JSON) and agentSource marker differ.
+
+**Q: Can I set cost to 0 in models?**  
+A: Yes. OpenClaw uses cost for client budget calculations. With the proxy, actual billing occurs upstream, and setting client cost to 0 does not affect functionality.
+
+**Q: What is `allowPrivateNetwork: true`?**  
+A: OpenClaw blocks private network requests by default as a security policy. This setting allows access to a proxy on `127.0.0.1` or an internal IP.

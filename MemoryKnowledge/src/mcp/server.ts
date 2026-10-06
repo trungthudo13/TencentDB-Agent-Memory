@@ -96,7 +96,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
   log.info(`MCP server starting, API URL: ${baseUrl}`);
 
-  const server = createMcpServer({ baseUrl, token });
+  const serviceId = process.env.KNOWLEDGE_SERVICE_ID || "default";
+  const server = createMcpServer({ baseUrl, token, serviceId });
   const transport = new StdioServerTransport();
 
   server.connect(transport).then(() => {

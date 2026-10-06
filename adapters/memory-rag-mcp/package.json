@@ -1,0 +1,10 @@
+{
+  "name": "@tencentdb-agent-memory/member-rag-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Member-local read-only stdio MCP adapter for shared MemoryCore and MemoryKnowledge APIs",
+  "engines": { "node": ">=22" },
+  "scripts": { "start": "node server.mjs", "test": "node --test test.mjs" },
+  "dependencies": { "@modelcontextprotocol/sdk": "1.30.0", "zod": "4.6.5" }
+}

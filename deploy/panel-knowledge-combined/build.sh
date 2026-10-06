@@ -1,28 +1,28 @@
 #!/usr/bin/env bash
-# 构建 panel + knowledge 合并镜像。
+# Build the combined Panel + Knowledge image.
 #
-# 用法（在 deploy/panel-knowledge-combined/ 下执行）：
-#   ./build.sh                              # 用默认路径 + 默认 tag
-#   TMC_DIR=/path/to/MemoryPanel ./build.sh # 自定义 panel 源码目录
+# Usage (run from deploy/panel-knowledge-combined/):
+# ./build.sh                              # Default paths and tag.
+# TMC_DIR=/path/to/MemoryPanel ./build.sh  # Override the Panel source directory.
 #   KNOWLEDGE_DIR=/path/to/MemoryKnowledge ./build.sh
-#   IMAGE_TAG=my-tag ./build.sh             # 自定义 tag
-#   CTX_DIR=/tmp/my-ctx ./build.sh          # 自定义临时 context 目录
-#   KEEP_CTX=1 ./build.sh                    # 不清理 context（调试用）
-#   PREPARE_ONLY=1 ./build.sh                # 只 rsync context，不 docker build（供 publish.sh）
+# IMAGE_TAG=my-tag ./build.sh             # Override the image tag.
+# CTX_DIR=/tmp/my-ctx ./build.sh          # Override the temporary build context.
+# KEEP_CTX=1 ./build.sh                   # Keep the context for debugging.
+# PREPARE_ONLY=1 ./build.sh               # Prepare the rsync context without building (used by publish.sh).
 #
-# 默认源码均在本仓库根下：
+# Default source layout under the repository root:
 #   memory-tencentdb/
-#   ├── MemoryPanel/                         # panel 后端 + web 前端
+# ├── MemoryPanel/                         # Panel backend + web frontend.
 #   ├── MemoryKnowledge/                     # knowledge service
-#   └── deploy/panel-knowledge-combined/     # 本配方
+# └── deploy/panel-knowledge-combined/     # This build recipe.
 #
-# 输出镜像名：team-memory-panel-knowledge:${TAG}（默认 tag=amd64）
+# Output image: team-memory-panel-knowledge:${TAG} (default tag: amd64).
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"          # memory-tencentdb 根
-WORKSPACE_ROOT="$(dirname "$REPO_ROOT")"               # 上一级（默认 CTX_DIR 落点）
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"          # memory-tencentdb repository root
+WORKSPACE_ROOT="$(dirname "$REPO_ROOT")"               # Parent directory, the default location for CTX_DIR.
 
 TMC_DIR="${TMC_DIR:-$REPO_ROOT/MemoryPanel}"
 KNOWLEDGE_DIR="${KNOWLEDGE_DIR:-$REPO_ROOT/MemoryKnowledge}"
@@ -36,11 +36,11 @@ PLATFORM="${PLATFORM:-linux/amd64}"
 err() { echo "[build-combined] error: $*" >&2; exit 1; }
 
 [[ -d "$TMC_DIR/package.json" || -f "$TMC_DIR/package.json" ]] \
-  || err "MemoryPanel 不在 $TMC_DIR（设 TMC_DIR=<path> 指定）"
+  || err "MemoryPanel not found at $TMC_DIR (override with TMC_DIR=<path>)."
 [[ -f "$KNOWLEDGE_DIR/package.json" ]] \
-  || err "MemoryKnowledge 不在 $KNOWLEDGE_DIR（设 KNOWLEDGE_DIR=<path> 指定）"
-[[ -f "$SCRIPT_DIR/Dockerfile" ]] || err "Dockerfile 不在 $SCRIPT_DIR"
-[[ -f "$SCRIPT_DIR/start-combined.sh" ]] || err "start-combined.sh 不在 $SCRIPT_DIR"
+  || err "MemoryKnowledge not found at $KNOWLEDGE_DIR (override with KNOWLEDGE_DIR=<path>)."
+[[ -f "$SCRIPT_DIR/Dockerfile" ]] || err "Dockerfile not found in $SCRIPT_DIR"
+[[ -f "$SCRIPT_DIR/start-combined.sh" ]] || err "start-combined.sh not found in $SCRIPT_DIR"
 
 echo "[build-combined] panel  (MemoryPanel): $TMC_DIR"
 echo "[build-combined] knowledge:            $KNOWLEDGE_DIR"
@@ -48,16 +48,16 @@ echo "[build-combined] context dir:                 $CTX_DIR"
 echo "[build-combined] image:                       $IMAGE_NAME:$IMAGE_TAG"
 echo ""
 
-# 清理旧 context（KEEP_CTX=1 时跳过）
+# Remove the previous context unless KEEP_CTX=1.
 if [[ "$KEEP_CTX" == "1" ]]; then
-  echo "[build-combined] KEEP_CTX=1 → 保留旧 context"
+  echo "[build-combined] KEEP_CTX=1 → Keeping the previous context"
 else
   rm -rf "$CTX_DIR"
 fi
 mkdir -p "$CTX_DIR"
 
-# rsync panel（builder stage 编译需要 src/ + web/ + package*.json + tsconfig.json，
-# 排除敏感真值 config/*.json、文档、测试、.claude、docker 配置等非必要文件）
+# Copy Panel with rsync; the builder needs src/, web/, package*.json, and tsconfig.json.
+# Exclude sensitive config/*.json, docs, tests, .claude, Docker configuration, and other unnecessary files.
 echo "[build-combined] rsync panel → $CTX_DIR/panel/"
 rsync -a --delete \
   --exclude .git \
@@ -84,8 +84,8 @@ rsync -a --delete \
   --exclude vitest.config.ts \
   "$TMC_DIR"/ "$CTX_DIR/panel"/
 
-# rsync knowledge（builder stage 编译需要 src/ + package*.json + tsconfig.json + tsdown.config.ts，
-# runtime 需要包根的 openapi.yaml（Swagger UI）。排除文档、测试、.claude、docker 配置等）
+# Copy Knowledge with rsync; the builder needs src/, package*.json, tsconfig.json, and tsdown.config.ts.
+# Runtime needs the root openapi.yaml for Swagger UI. Exclude docs, tests, .claude, and Docker configuration.
 echo "[build-combined] rsync knowledge → $CTX_DIR/knowledge/"
 rsync -a --delete \
   --exclude .git \
@@ -109,7 +109,7 @@ rsync -a --delete \
   --exclude start.sh \
   "$KNOWLEDGE_DIR"/ "$CTX_DIR/knowledge"/
 
-# 拷 Dockerfile + start-combined.sh + .dockerignore + README（rsync 已过滤敏感文件，.dockerignore 作兜底）
+# Copy Dockerfile, start-combined.sh, .dockerignore, and README; .dockerignore adds protection after rsync filtering.
 cp "$SCRIPT_DIR/Dockerfile" "$CTX_DIR"/
 cp "$SCRIPT_DIR/start-combined.sh" "$CTX_DIR"/
 cp "$SCRIPT_DIR/README.md" "$CTX_DIR"/
@@ -119,7 +119,7 @@ fi
 
 if [[ "$PREPARE_ONLY" == "1" ]]; then
   echo ""
-  echo "[build-combined] PREPARE_ONLY=1 → context 已就绪: $CTX_DIR"
+  echo "[build-combined] PREPARE_ONLY=1 → Context ready: $CTX_DIR"
   exit 0
 fi
 
@@ -129,4 +129,4 @@ docker build --platform "$PLATFORM" -t "$IMAGE_NAME:$IMAGE_TAG" "$CTX_DIR"
 
 echo ""
 echo "[build-combined] ✅ done: $IMAGE_NAME:$IMAGE_TAG"
-echo "[build-combined] context 保留在 $CTX_DIR（KEEP_CTX=0 时下次会清掉）"
+echo "[build-combined] Context retained at $CTX_DIR (the next run removes it when KEEP_CTX=0)."

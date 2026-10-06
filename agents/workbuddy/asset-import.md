@@ -1,45 +1,45 @@
-# WorkBuddy 资产导入
+# WorkBuddy Asset Import
 
-把本机 WorkBuddy 的 **skill / session** 导入 Memory Hub。这一份手册即可完成。
+Import local  WorkBuddy **skills / sessions** into Memory Hub. This guide covers the complete process.
 
-桌面数据目录默认 `~/.workbuddy`。
+The desktop data directory defaults to `~/.workbuddy`.
 
-## 扫什么
+## What is scanned
 
-| 类型 | 路径 |
+| Type | Path |
 |---|---|
-| Skill | `~/.workbuddy/skills/*/SKILL.md`；项目 `.workbuddy/skills` 或 `workbuddy/skills` |
-| Session | 项目下 OpenAI 风格 messages 的 jsonl |
+| Skill | `~/.workbuddy/skills/*/SKILL.md`; project `.workbuddy/skills` or `workbuddy/skills` |
+| Session | Project JSONL files containing OpenAI style messages |
 
-`--workspace` 把项目侧路径改成该目录（不排除 `~/.workbuddy` 全局）。
+`--workspace` changes project paths to that directory (global `~/.workbuddy` paths are still included).
 
-## 前置
+## Prerequisites
 
-在仓库根执行。需要 Node >= 22，以及：
+Run from the repository root. Requires Node >= 22 and the following:
 
 ```bash
 export PANEL_URL=http://127.0.0.1:8123
 export TDAI_SERVICE_ID=<spaceId>
-export TDAI_USER_KEY=<该 agent owner 的 sk-mem-...>
+export TDAI_USER_KEY=<sk-mem-... key of this agent owner>
 ```
 
-`--agent-id` / `--team-id` 必填；owner 必须等于 `TDAI_USER_KEY` 反查用户。
+`--agent-id` / `--team-id` are required; the owner must match the user resolved from `TDAI_USER_KEY`.
 
-## 用法
+## Usage
 
-统一入口为仓库根 `agents/asset-import.ts`。用 `--source workbuddy` 指定本手册对应的 IDE；省略时默认 `auto` 自动识别当前工作区所用 IDE。
+The shared entry point is `agents/asset-import.ts` at the repository root. Use `--source workbuddy` to select the IDE covered by this guide; if omitted, `auto` detects the IDE used in the current workspace.
 
 ```bash
-# 交互式导入：先列举待导入项 —— skill（编号/名称/描述/来源/关联脚本数）、session（id/时间范围/项目路径），再选择「全导入 / 不导入 / 部分导入」（部分导入可填编号或 ID，逗号/空格分隔，可多个）
+# Interactive import: list skills (number/name/description/source/linked script count) and sessions (ID/time range/project path), then choose import all / none / selected (multiple numbers or IDs separated by commas or spaces).
 tsx agents/asset-import.ts --source workbuddy --agent-id <id> --team-id <tid>
 
-# 非交互（脚本/CI，直接全量导入，不询问）
+# Noninteractive import (scripts/CI; import everything without prompting)
 tsx agents/asset-import.ts --source workbuddy --agent-id <id> --team-id <tid> -y
 
-# 指定项目目录
+# Specify the project directory
 tsx agents/asset-import.ts --source workbuddy --workspace /path/to/project --agent-id <id> --team-id <tid>
 
-# 重新导入（忽略断点续传，重导已导入项）
+# Reimport (ignore resume checkpoints and import previously imported items again)
 tsx agents/asset-import.ts --source workbuddy --agent-id <id> --team-id <tid> --force
 
 ```
