@@ -1,0 +1,126 @@
+name: agent-memory
+# Memory services are built from local source; MongoDB uses its pinned upstream image.
+# Run from the repository root: docker compose -f docker/docker-compose.yml up -d --build
+# Compose automatically reads docker/.env. Copy docker/.env.example to docker/.env and set MEMORY_LLM_API_KEY before starting.
+services:
+  mongodb:
+    image: mongodb/mongodb-atlas-local:8.0.32
+    # Keep the hostname stable so the replica set configuration remains valid when the container is recreated.
+    hostname: mongodb
+    restart: unless-stopped
+    environment:
+      MONGOT_LOG_FILE: /dev/stderr
+      RUNNER_LOG_FILE: /dev/stderr
+    volumes:
+      - mongo-data:/data/db
+      - mongo-config:/data/configdb
+      - mongo-search:/data/mongot
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "if (db.adminCommand('hello').isWritablePrimary === true) process.exit(0); else process.exit(1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  memory:
+    pull_policy: build
+    build:
+      context: ../MemoryCore
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${MEMORY_CORE_PORT:-8420}:8420"
+    environment:
+      TDAI_GATEWAY_CONFIG: /data/config/tdai-gateway.yaml
+      TDAI_DEPLOY_MODE: standalone
+      STATE_BACKEND: local
+      STORE_MODE: mongodb
+      MONGODB_ENDPOINT: mongodb://mongodb:27017/?directConnection=true
+      MONGODB_DATABASE: ${MONGODB_DATABASE:-tdai_memory}
+      TDAI_METADATA_MONGO_URI: mongodb://mongodb:27017/?directConnection=true
+      TDAI_GATEWAY_API_KEY: ${MEMORY_CORE_GATEWAY_API_KEY:-}
+      TDAI_PASSWORD_PEPPER: ${TDAI_PASSWORD_PEPPER:?Set TDAI_PASSWORD_PEPPER in docker/.env}
+      TDAI_LLM_API_KEY: ${MEMORY_LLM_API_KEY:?Set MEMORY_LLM_API_KEY in docker/.env}
+      TDAI_LLM_BASE_URL: ${MEMORY_LLM_BASE_URL:?Set MEMORY_LLM_BASE_URL in docker/.env}
+      TDAI_LLM_MODEL: ${MEMORY_LLM_MODEL:?Set MEMORY_LLM_MODEL in docker/.env}
+      TDAI_LLM_PROTOCOL: ${MEMORY_LLM_PROTOCOL:?Set MEMORY_LLM_PROTOCOL in docker/.env}
+    volumes:
+      - ../MemoryCore/tdai-gateway.local-mongo.yaml:/data/config/tdai-gateway.yaml:ro
+      - memory-data:/data/tdai-memory
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8420/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  knowledgebase:
+    pull_policy: build
+    build:
+      context: ../MemoryKnowledge
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${KNOWLEDGE_PORT:-8421}:8421"
+    environment:
+      PORT: "8421"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      KNOWLEDGE_DATA_DIR: /app/data
+      # KnowledgeBase currently supports only SQLite, independently of Memory's MongoDB.
+      KNOWLEDGE_DB_PATH: /app/data/knowledge.db
+      KNOWLEDGE_PUBLIC_BASE_URL: ${KNOWLEDGE_PUBLIC_BASE_URL:?Set a URL ending in /v3 in docker/.env}
+      KNOWLEDGE_SERVICE_KEY: ${KNOWLEDGE_SERVICE_KEY:-}
+      TMC_CALLBACK_URL: ${TMC_CALLBACK_URL:-http://memory-panel:8123}
+      LLM_MODE: custom
+      LLM_PROVIDER: custom
+      LLM_PROTOCOL: ${MEMORY_LLM_PROTOCOL:-openai}
+      LLM_API_KEY: ${MEMORY_LLM_API_KEY:?Set MEMORY_LLM_API_KEY in docker/.env}
+      LLM_BASE_URL: ${MEMORY_LLM_BASE_URL:?Set MEMORY_LLM_BASE_URL in docker/.env}
+      LLM_MODEL: ${MEMORY_LLM_MODEL:?Set MEMORY_LLM_MODEL in docker/.env}
+    volumes:
+      - knowledge-data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8421/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  memory-panel:
+    pull_policy: build
+    build:
+      context: ../MemoryPanel
+      dockerfile: docker/local/Dockerfile.local
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${PANEL_PORT:-8125}:8123"
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8123"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      UI_DIST_DIR: ./web/dist
+      METADATA_INSTANCES_CONFIG: /data/config/metadata-instances.json
+      MEMORY_CORE_GATEWAY_API_KEY: ${MEMORY_CORE_GATEWAY_API_KEY:-}
+      KNOWLEDGE_SERVICE_URL: http://knowledgebase:8421
+      KNOWLEDGE_AUTH_TOKEN: ${KNOWLEDGE_SERVICE_KEY:-}
+      KNOWLEDGE_LLM_BINDING_SYNC: "false"
+    command: ["node", "/app/panel-entrypoint.mjs"]
+    volumes:
+      - ./panel-entrypoint.mjs:/app/panel-entrypoint.mjs:ro
+      - panel-data:/app/data
+    depends_on:
+      memory:
+        condition: service_healthy
+      knowledgebase:
+        condition: service_healthy
+
+volumes:
+  mongo-data:
+  mongo-config:
+  mongo-search:
+  memory-data:
+  knowledge-data:
+  panel-data:

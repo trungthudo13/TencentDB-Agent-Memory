@@ -23,8 +23,10 @@ ARG PANEL_UI=web
 # ── base：node:22-slim + 腾讯云 apt 镜像 + 原生编译工具链 ──────────────
 FROM node:22-slim AS base
 
-RUN sed -i 's|deb.debian.org|mirrors.tencent.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
-    sed -i 's|deb.debian.org|mirrors.tencent.com|g' /etc/apt/sources.list 2>/dev/null || true
+ARG APT_MIRROR=deb.debian.org
+RUN if [ "$APT_MIRROR" != "deb.debian.org" ]; then \
+      sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources; \
+    fi
 
 # better-sqlite3 原生编译 + git（可选）+ curl（healthcheck）
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
