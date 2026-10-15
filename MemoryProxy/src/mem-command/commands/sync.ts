@@ -42,7 +42,7 @@ export async function executeSync(ctx: MemCommandContext): Promise<MemCommandRes
     agentSource: ctx.agentSource,
     config: ctx.config,
     spaceId: ctx.spaceId,
-    callerUserKey: ctx.apiKey,
+    callerUserKey: ctx.memoryUserKey ?? ctx.apiKey,
   });
 
   const messageText = result.success

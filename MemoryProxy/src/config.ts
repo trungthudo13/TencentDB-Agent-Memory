@@ -451,7 +451,7 @@ export function buildConfig(overrides: CliOverrides = {}): ProxyConfig {
     tdai: {
       enabled: yaml.tdai?.enabled ?? DEFAULT_CONFIG.tdai.enabled,
       endpoint: yaml.tdai?.endpoint ?? DEFAULT_CONFIG.tdai.endpoint,
-      apiKey: yaml.tdai?.apiKey ?? DEFAULT_CONFIG.tdai.apiKey,
+      apiKey: expandEnv(yaml.tdai?.apiKey ?? DEFAULT_CONFIG.tdai.apiKey),
       serviceId: yaml.tdai?.serviceId ?? DEFAULT_CONFIG.tdai.serviceId,
       memory: {
         enabled: yaml.tdai?.memory?.enabled ?? DEFAULT_CONFIG.tdai.memory.enabled,
@@ -469,14 +469,14 @@ export function buildConfig(overrides: CliOverrides = {}): ProxyConfig {
     // new name in config.example.yaml. When both are present, `skill:` wins.
     coreSkill: {
       endpoint: yaml.skill?.endpoint ?? yaml.coreSkill?.endpoint ?? DEFAULT_CONFIG.coreSkill.endpoint,
-      serviceToken: yaml.skill?.serviceToken ?? yaml.coreSkill?.serviceToken ?? DEFAULT_CONFIG.coreSkill.serviceToken,
+      serviceToken: expandEnv(yaml.skill?.serviceToken ?? yaml.coreSkill?.serviceToken ?? DEFAULT_CONFIG.coreSkill.serviceToken),
       serviceId: yaml.skill?.serviceId ?? yaml.coreSkill?.serviceId ?? DEFAULT_CONFIG.coreSkill.serviceId,
       timeoutMs: yaml.skill?.timeoutMs ?? yaml.coreSkill?.timeoutMs ?? DEFAULT_CONFIG.coreSkill.timeoutMs,
     },
     knowledge: {
       enabled: yaml.knowledge?.enabled ?? DEFAULT_CONFIG.knowledge.enabled,
       endpoint: yaml.knowledge?.endpoint ?? DEFAULT_CONFIG.knowledge.endpoint,
-      serviceToken: yaml.knowledge?.serviceToken ?? DEFAULT_CONFIG.knowledge.serviceToken,
+      serviceToken: expandEnv(yaml.knowledge?.serviceToken ?? DEFAULT_CONFIG.knowledge.serviceToken),
       serviceId: yaml.knowledge?.serviceId ?? DEFAULT_CONFIG.knowledge.serviceId,
       timeoutMs: yaml.knowledge?.timeoutMs ?? DEFAULT_CONFIG.knowledge.timeoutMs,
     },
@@ -488,6 +488,7 @@ export function buildConfig(overrides: CliOverrides = {}): ProxyConfig {
     auth: {
       enabled: yaml.auth?.enabled ?? DEFAULT_CONFIG.auth.enabled,
       url: yaml.auth?.url ?? DEFAULT_CONFIG.auth.url,
+      serviceToken: expandEnv(yaml.auth?.serviceToken ?? ""),
       timeoutMs: yaml.auth?.timeoutMs ?? DEFAULT_CONFIG.auth.timeoutMs,
     },
     // Entries without a non-empty userId are silently dropped — matching is

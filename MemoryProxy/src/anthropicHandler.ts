@@ -43,7 +43,7 @@ import {
 import { resolveModelId, isModelInPricing } from "./pricing.js";
 import { inspectAndRecord } from "./identity.js";
 import { writeFailedReportRaw } from "./clickhouse.js";
-import { verifyUserKey } from "./auth.js";
+import { resolveMemoryUserKey, verifyUserKey } from "./auth.js";
 import { matchSystemUserByUserId, hasSystemUsers } from "./systemUser.js";
 import { handleSystemUserPassthrough } from "./systemUserPassthrough.js";
 import { TdaiClient } from "./tdai/client.js";
@@ -539,8 +539,9 @@ export async function handleAnthropicMessages(
   // parsing or the alias-gate. `earlyVerify.userId` is reused later for
   // both the systemUser short-circuit and the normal pipeline.
   const earlyApiKey = extractApiKey(c);
+  const memoryUserKey = resolveMemoryUserKey(c.req.header("x-tdai-user-key"), earlyApiKey);
   const earlySpaceId = extractSpaceIdFromPath(c.req.path) ?? "";
-  const earlyVerify = await verifyUserKey(earlyApiKey, earlySpaceId);
+  const earlyVerify = await verifyUserKey(memoryUserKey, earlySpaceId);
   if (earlyVerify.rejected) {
     return c.json({ type: "error", error: { type: "authentication_error", message: `Authentication failed: ${earlyVerify.rejectReason ?? "unknown"}` } }, 401);
   }
@@ -683,8 +684,8 @@ export async function handleAnthropicMessages(
     || "";
   if (userId) keyId = userId;
 
-  // sk-mem key（用于 TDAI ACL / MetadataClient 的 x-tdai-user-key）就是入口的 apiKey。
-  const callerUserKey = apiKey || null;
+  // Keep MemoryCore ACL credentials separate from the model credential.
+  const callerUserKey = memoryUserKey || null;
 
   // Activate Redis storage early — must run BEFORE session init.
   if (config.redis?.enabled) {
@@ -758,7 +759,7 @@ export async function handleAnthropicMessages(
       const { getSessionStore, handleSessionInit, parsePresetIdentity } = await import("./session/index.js");
       const { getMetadataClient } = await import("./meta/client.js");
       const store = getSessionStore();
-      const metadataClient = getMetadataClient(config.coreSkill, spaceId, apiKey);
+      const metadataClient = getMetadataClient(config.coreSkill, spaceId, memoryUserKey);
       const presetIdentity = parsePresetIdentity(config.sessionInit, lcHeaders);
 
       // ── Session Recovery: try L2b binding before falling into session-init form ──
@@ -843,7 +844,7 @@ export async function handleAnthropicMessages(
           { stream: isStream, modelId: modelId as string, protocol: "anthropic" },
           agentSource,
           metadataClient,
-          apiKey,
+          memoryUserKey,
           spaceId,
           presetIdentity,
         );
@@ -1084,6 +1085,7 @@ export async function handleAnthropicMessages(
         spaceId,
         userId,
         apiKey: apiKey || "",
+        memoryUserKey,
         sessionInfo: sessionInfo as Record<string, unknown>,
         protocol: "anthropic",
         stream: isStream,
@@ -1281,7 +1283,7 @@ export async function handleAnthropicMessages(
       target.url = `${convCfg.base_url.replace(/\/+$/, "")}${forwardEndpoint}`;
       effectiveApiKey = convCfg.mode === "custom_unified"
         ? convCfg.api_key
-        : apiKey; // custom_passthrough
+        : ""; // custom_passthrough: preserve original model authentication headers
       if (convCfg.model_id) {
         body.model = convCfg.model_id;
         modelId = convCfg.model_id;

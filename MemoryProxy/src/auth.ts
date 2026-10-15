@@ -13,6 +13,13 @@ import type { AuthConfig } from "./types.js";
 
 export type { AuthConfig };
 
+/** Explicit Memory identity wins, including an empty header (fail closed).
+ * Older clients may still carry their Memory key as the upstream credential.
+ */
+export function resolveMemoryUserKey(header: string | undefined, legacyCredential: string): string {
+  return header === undefined ? legacyCredential : header.trim();
+}
+
 /** Result of verifyUserKey call. */
 export interface VerifyUserResult {
   /** User ID if verified successfully; empty string otherwise. */
@@ -78,6 +85,7 @@ export async function verifyUserKey(userKey: string, serviceId: string): Promise
       headers: {
         "content-type": "application/json",
         "x-tdai-service-id": serviceId,
+        ...(config.serviceToken ? { Authorization: `Bearer ${config.serviceToken}` } : {}),
       },
       body: JSON.stringify({ user_key: userKey }),
     };

@@ -1,4 +1,84 @@
-# Initialize the first admin with Docker
+# Docker deployment
+
+## MemoryProxy
+
+Build and start only the proxy from the repository root:
+
+```bash
+docker compose -f docker/docker-compose.yml up -d --build --no-deps memory-proxy
+curl -fsS http://127.0.0.1:8096/health
+docker compose -f docker/docker-compose.yml logs --tail=50 memory-proxy
+```
+
+The service builds the local `MemoryProxy/` source, mounts
+`docker/memory-proxy.yaml` read-only, and persists SQLite state in `proxy-data`.
+It binds to `127.0.0.1:8096` independently of the other services' `BIND_ADDRESS`.
+Optional `.env` overrides are `PROXY_BIND_ADDRESS`, `PROXY_PORT`, and
+`PROXY_UPSTREAM_URL`. Defaults work without adding anything to an existing `.env`.
+The upstream defaults to `https://chatgpt.com/backend-api/codex`; the proxy has
+no LLM API key and preserves the caller's upstream credential.
+
+This initial deployment starts the existing API reverse proxy. It is **not** a
+CONNECT forward proxy and is not configured through `HTTP_PROXY`/`HTTPS_PROXY`.
+Starting the container does not reroute Codex automatically or change its login.
+The existing Codex POST route is `/codex/default/v1/responses` (also accepted
+without `/v1`), forwarded to the upstream's `/responses` endpoint.
+
+**Current limits:** MemoryCore authentication, session initialization, memory
+injection, and extraction are explicitly disabled. ChatGPT tokens cannot be
+used as MemoryCore user keys; configure the separate header below before
+enabling capture. The existing Codex handler supports
+HTTP/SSE; this deployment does not add WebSocket forwarding or the model-list
+routes needed for a complete Codex gateway. Do not treat a successful `/health`
+check as proof of authenticated Codex compatibility or memory capture.
+
+Because gateway authentication is disabled, keep the loopback binding for this
+initial setup. The upstream must still authenticate each model request.
+`/health` reports process/storage health, not a successful model call.
+
+### Separate Memory identity from model authentication
+
+Codex and Claude Code requests may carry both credentials:
+
+```http
+Authorization: Bearer <model-login-token>
+x-tdai-user-key: <Memory-Hub-user-key>
+```
+
+The proxy uses `x-tdai-user-key` for MemoryCore verification, session setup,
+capabilities, and memory operations. It removes this header before forwarding
+to the model and preserves the model's own authentication. When the header is
+absent, legacy clients can still supply their Memory key in their original
+authentication header. An explicitly empty header does not fall back.
+
+For Codex, add this under the existing provider in user-level `config.toml`:
+
+```toml
+[model_providers.memory_proxy.env_http_headers]
+x-tdai-user-key = "MEMORY_USER_KEY"
+```
+
+Set `MEMORY_USER_KEY` in the environment of the process launching Codex, using
+your own Memory Hub user key, then start a new session. Keep
+`requires_openai_auth = true`; do not replace the ChatGPT token with this key.
+For Claude Code, the same header can be supplied via `ANTHROPIC_CUSTOM_HEADERS`;
+keep the existing subscription login instead of setting `ANTHROPIC_AUTH_TOKEN`.
+
+The separate internal gateway credential is `MEMORY_CORE_GATEWAY_API_KEY` from
+`docker/.env`. Compose passes it to the proxy; the YAML references it through
+`auth.serviceToken`, `tdai.apiKey`, and `skill.serviceToken`. It is never sent
+to the model. After changing `.env`, recreate the proxy container.
+
+To enable L0 capture after clients have their user keys, set `auth.enabled`,
+`sessionInit.enabled`, `extraction.enabled`, and `tdai.enabled` to `true` in
+`memory-proxy.yaml`, and set `extraction.extractors: [tdai-memory]` for L0 only.
+The nested `tdai.memory.enabled` and `writeL0` flags are already prepared.
+Restart the proxy, open a new agent session, and complete team/agent/task
+selection (Codex needs Plan mode for the selection form). Missing or bypassed
+session identity means L0 capture is skipped. Memory injection is a separate
+feature and remains disabled in this setup.
+
+## Initialize the first admin with Docker
 
 Run these commands in Bash from the repository root. This guide uses
 `docker/docker-compose.yml` and its `memory` service.

@@ -45,6 +45,7 @@ const SKIP_REQUEST_HEADERS = new Set([
   "content-length",
   "transfer-encoding",
   "connection",
+  "x-tdai-user-key",
 ]);
 
 /** 响应头中不应回传给客户端的头（避免 stream 长度不一致等问题）。 */

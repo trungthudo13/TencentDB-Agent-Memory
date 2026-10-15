@@ -27,7 +27,7 @@ import {
 import { matchWhitelistEndpoint, type WhitelistEndpoint } from "./routes/whitelist.js";
 import { joinUrl } from "./guard-adapter.js";
 import { log } from "./report/log.js";
-import { verifyUserKey } from "./auth.js";
+import { resolveMemoryUserKey, verifyUserKey } from "./auth.js";
 import { matchSystemUserByUserId, hasSystemUsers } from "./systemUser.js";
 import { handleSystemUserPassthrough } from "./systemUserPassthrough.js";
 import {
@@ -42,6 +42,7 @@ const SKIP_REQUEST_HEADERS = new Set([
   "content-length",
   "transfer-encoding",
   "connection",
+  "x-tdai-user-key",
 ]);
 
 /** 响应头中不应回传给客户端的头（避免 stream 长度不一致等问题）。 */
@@ -188,7 +189,7 @@ export async function handleAuxiliaryEndpoint(
   // spaceId 来源于请求路径 /proxy/<spaceId>/...；无路径前缀时为 ""。
   const spaceId = extractSpaceIdFromPath(c.req.path) ?? "";
   const { userId, rejected: userKeyRejected, rejectReason } =
-    await verifyUserKey(apiKey, spaceId);
+    await verifyUserKey(resolveMemoryUserKey(c.req.header("x-tdai-user-key"), apiKey), spaceId);
   if (userKeyRejected) {
     return c.json(
       { error: `Authentication failed: ${rejectReason ?? "unknown"}` },

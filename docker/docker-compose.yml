@@ -89,6 +89,32 @@ services:
       retries: 5
       start_period: 30s
 
+  memory-proxy:
+    pull_policy: build
+    build:
+      context: ../MemoryProxy
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      MEMORY_CORE_GATEWAY_API_KEY: ${MEMORY_CORE_GATEWAY_API_KEY:-}
+    # Separate loopback default: this initial passthrough has no gateway auth.
+    ports:
+      - "${PROXY_BIND_ADDRESS:-127.0.0.1}:${PROXY_PORT:-8096}:8096"
+    command:
+      - --config
+      - /data/config.yaml
+      - --upstream
+      - ${PROXY_UPSTREAM_URL:-https://chatgpt.com/backend-api/codex}
+    volumes:
+      - ./memory-proxy.yaml:/data/config.yaml:ro
+      - proxy-data:/data/tdai-memory-proxy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8096/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   memory-panel:
     pull_policy: build
     build:
@@ -124,3 +150,4 @@ volumes:
   memory-data:
   knowledge-data:
   panel-data:
+  proxy-data:

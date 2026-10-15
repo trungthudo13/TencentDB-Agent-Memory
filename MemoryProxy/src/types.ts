@@ -659,6 +659,8 @@ export interface ExtractionConfig {
 /** Auth service configuration — verify user_key and resolve user_id via auth/verify API. */
 export interface AuthConfig {
   enabled: boolean;
+  /** Internal MemoryCore gateway credential; separate from the end user's key. */
+  serviceToken?: string;
   /** Auth service base URL (e.g. http://kernel.example.com:8420). */
   url: string;
   /** Request timeout in ms. Default: 5000. */
@@ -916,6 +918,7 @@ export interface RawYamlConfig {
   auth?: {
     enabled?: boolean;
     url?: string;
+    serviceToken?: string;
     timeoutMs?: number;
   };
   systemUsers?: Partial<SystemUserEntry>[];

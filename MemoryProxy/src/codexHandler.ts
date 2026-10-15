@@ -31,7 +31,7 @@ import { apiKeyToKeyId, extractBearerToken, uuidv7 } from "./opik.js";
 import { createPipeline, writeLog } from "./logger.js";
 import { extractSpaceIdFromPath } from "./credit-reporter.js";
 import { joinUrl } from "./guard-adapter.js";
-import { verifyUserKey } from "./auth.js";
+import { resolveMemoryUserKey, verifyUserKey } from "./auth.js";
 import { resolveModelId } from "./pricing.js";
 import { codexAdapter } from "./agent-adapters/codex.js";
 import {
@@ -289,9 +289,10 @@ export async function handleCodexEndpoint(
     c.req.header("x-api-key") ??
     "";
 
+  const memoryUserKey = resolveMemoryUserKey(c.req.header("x-tdai-user-key"), apiKey);
   const spaceId = extractSpaceIdFromPath(path) ?? "";
   const { userId, rejected: userKeyRejected, rejectReason } =
-    await verifyUserKey(apiKey, spaceId);
+    await verifyUserKey(memoryUserKey, spaceId);
   if (userKeyRejected) {
     return c.json(
       { error: `Authentication failed: ${rejectReason ?? "unknown"}` },
@@ -355,7 +356,7 @@ export async function handleCodexEndpoint(
   const agentSource = "codex";
   const isStream = body.stream !== false;
 
-  const callerUserKey = apiKey || null;
+  const callerUserKey = memoryUserKey || null;
 
   // ── 6b. Langfuse turn context (one trace = one turn) ────────────────────────
   // codex 的 turn 序号从 body.input[] 里"人类输入"数量推导（同 CC/CB 惯例；
@@ -459,7 +460,7 @@ export async function handleCodexEndpoint(
       const { getSessionStore, handleSessionInit, parsePresetIdentity } = await import("./session/index.js");
       const { getMetadataClient } = await import("./meta/client.js");
       const store = getSessionStore();
-      const metadataClient = getMetadataClient(config.coreSkill, spaceId, apiKey);
+      const metadataClient = getMetadataClient(config.coreSkill, spaceId, memoryUserKey);
       const presetIdentity = parsePresetIdentity(config.sessionInit, headers);
 
       const compositeKey = `${agentSource}:${sessionKey}`;
@@ -538,7 +539,7 @@ export async function handleCodexEndpoint(
           },
           agentSource,
           metadataClient,
-          apiKey,
+          memoryUserKey,
           spaceId,
           presetIdentity,
         );
@@ -766,6 +767,7 @@ export async function handleCodexEndpoint(
           spaceId,
           userId: userId || "",
           apiKey: apiKey || "",
+          memoryUserKey,
           sessionInfo: sessionInfo as Record<string, unknown>,
           protocol: "responses",
           stream: isStream,

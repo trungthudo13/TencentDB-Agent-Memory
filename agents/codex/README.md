@@ -8,34 +8,156 @@
 
 ## 1. Client configuration
 
-Codex is configured through the **configuration file** `~/.codex/config.toml`:
+### 1.1 ChatGPT subscription + Memory Hub
+
+Use this setup when Codex already works with **Sign in with ChatGPT**. Each
+person keeps their own ChatGPT login and uses their own Memory Hub `user_key`.
+The proxy does not need an LLM API key for this flow.
+
+Edit the user-level **`~/.codex/config.toml`**, merging into existing tables
+rather than duplicating them. Keep your current `model` and reasoning settings.
+Place `model_provider` at the top level, before any `[table]`:
 
 ```toml
-# ~/.codex/config.toml
-model_provider = "team-proxy"
-model = "claude-opus-4.7"
-model_reasoning_effort = "high"
-disable_response_storage = true
+model_provider = "memory_proxy"
 
-[model_providers.team-proxy]
-name       = "TDAI team-proxy"
-wire_api   = "responses"
-base_url   = "http://127.0.0.1:8096/codex/default"
-experimental_bearer_token = "<business user's sk-mem-... user_key>"
-
-request_max_retries    = 2
-stream_max_retries     = 3
+[model_providers.memory_proxy]
+name = "Local MemoryProxy"
+base_url = "http://127.0.0.1:8096/codex/default/v1"
+wire_api = "responses"
+requires_openai_auth = true
+supports_websockets = false
 stream_idle_timeout_ms = 120000
+
+[model_providers.memory_proxy.env_http_headers]
+x-tdai-user-key = "MEMORY_USER_KEY"
+
+[model_providers.memory_proxy.http_headers]
+x-team-id = "<team_id from Memory Hub>"
+x-agent-id = "<agent_id belonging to that team>"
+# Optional: omit this line when no task is needed.
+# x-task-id = "<task_id belonging to that team>"
 ```
 
-Field descriptions:
-- `wire_api = "responses"` — **Required**; Codex uses the OpenAI Responses API protocol
-- `base_url` — Proxy address + `/codex/<spaceId>`; `default` is the memory instance ID
-- `experimental_bearer_token` — Business user's `user_key` (from the panel)
-- `disable_response_storage = true` — Disable local caching to ensure each turn receives proxy injection
-- `stream_idle_timeout_ms = 120000` — Avoid timeouts while session-init waits for user input
+`MEMORY_USER_KEY` above is the **environment variable name**, not the key itself.
+For Bash, enter your Memory Hub user key without putting it in shell history,
+then launch Codex from that same terminal:
 
-> ⚠️ **Switch to Plan mode before the first conversation** (`Shift+Tab`). Codex's default Agent mode automatically executes tool calls and skips user selections, preventing session-init from completing. Switch back to Agent mode after selecting Team→Agent→Task.
+```bash
+read -r -s -p "Memory Hub user key: " MEMORY_USER_KEY
+printf '\n'
+export MEMORY_USER_KEY
+codex
+```
+
+For an IDE or desktop app, the process launching Codex must inherit this variable;
+exporting it in an unrelated terminal will not update an already running app.
+**Start a new agent session after changing the configuration or environment.**
+Existing sessions may retain their previous provider and identity settings.
+
+The resulting request carries two separate credentials:
+
+| Header | Purpose |
+| --- | --- |
+| `Authorization` | Codex supplies its ChatGPT login token for the model upstream. |
+| `x-tdai-user-key` | Your Memory Hub identity, used for verification and memory operations; stripped before forwarding to the model. |
+
+Do not set `experimental_bearer_token` to a Memory key for this subscription
+setup. The proxy upstream should be `https://chatgpt.com/backend-api/codex` with
+`upstream.apiKey: ""`, preserving the caller's model authentication.
+
+`default` in the URL is the **memory instance ID**, not the team ID.
+`127.0.0.1` works when the proxy runs on the same machine as Codex. For a shared
+proxy, use the reachable gateway URL supplied by your administrator, including
+`/codex/default/v1`. Everyone can share that URL while using individual user keys.
+
+Codex configuration references: [ChatGPT login through a gateway](https://learn.chatgpt.com/docs/enterprise/sign-in-with-chatgpt-through-a-gateway)
+and [provider settings](https://learn.chatgpt.com/docs/config-file/config-reference).
+
+### 1.2 Select a team, agent, and optional task
+
+Use actual **IDs**, not display names. Obtain them from Memory Hub or your
+administrator. `x-agent-id` identifies a Memory Hub agent record, not a Codex
+process or a model name. Each user must have access to the selected team.
+
+The proxy validates these headers against the teams, agents, and tasks visible
+to the authenticated Memory Hub user:
+
+| Supplied headers | Session initialization behavior |
+| --- | --- |
+| Valid `x-team-id` + `x-agent-id` | Registers the session directly, without the selection form; task is optional. |
+| Only `x-team-id` | Preselects the team; remaining selections use the form. |
+| No team header | Uses the interactive selection flow. |
+| Unknown/inaccessible team or agent | Falls back to the form by default (`onMismatch: form`). |
+| Unknown task with valid team + agent | Drops the task and registers without a task association. |
+
+Headers take effect when initializing a session with `sessionInit.enabled: true`
+and `sessionInit.headerAutoSelect.enabled: true` (header auto-selection defaults
+to enabled). Start a new session when switching teams or agents.
+
+**If the form is needed, switch Codex to Plan mode before the first message.**
+Default mode blocks `request_user_input`; the proxy may then skip initialization
+and cannot capture L0 without a complete session identity. With valid team and
+agent headers, direct registration avoids this form requirement.
+
+### 1.3 Administrator: enable chat memory capture
+
+Routing a model call through the proxy does **not** by itself enable chat memory.
+The initial [Docker configuration](../../docker/memory-proxy.yaml) disables
+capture. In that file, merge these settings into the existing sections:
+
+```yaml
+auth:
+  enabled: true
+sessionInit:
+  enabled: true
+  headerAutoSelect:
+    enabled: true
+    onMismatch: form
+extraction:
+  enabled: true
+  extractors: [tdai-memory]
+tdai:
+  enabled: true
+  memory:
+    enabled: true
+    writeL0: true
+```
+
+Keep the existing endpoints and service-token settings. The internal
+`MEMORY_CORE_GATEWAY_API_KEY` in `docker/.env` is a server credential; it is
+separate from each person's `MEMORY_USER_KEY`. See the [Docker guide](../../docker/GUIDE.md#separate-memory-identity-from-model-authentication)
+for those settings. Injection/recall is configured separately from L0 capture.
+
+After editing the YAML, restart the proxy from the repository root:
+
+```bash
+docker compose -f docker/docker-compose.yml restart memory-proxy
+```
+
+If `docker/.env` changed, recreate the container to load the new environment:
+
+```bash
+docker compose -f docker/docker-compose.yml up -d --no-deps --force-recreate memory-proxy
+```
+
+Open a new Codex session, send a message, wait for the answer, then check Chat
+Memory in Memory Hub under the selected team and agent. If no record appears,
+check the capture flags, user-key verification, and session registration in:
+
+```bash
+docker compose -f docker/docker-compose.yml logs --tail=100 memory-proxy
+```
+
+A successful model response or `/health` check alone does not confirm L0 capture.
+
+### 1.4 Legacy proxy-managed model authentication
+
+Older deployments may use `experimental_bearer_token = "<Memory Hub user_key>"`
+when the proxy separately supplies the model's upstream credential. When
+`x-tdai-user-key` is absent, MemoryProxy falls back to that original credential
+for Memory authentication. An explicitly empty Memory header does not fall back.
+Use section 1.1 for ChatGPT subscription passthrough.
 
 Request paths:
 - `POST /codex/:spaceId/v1/responses`
@@ -85,7 +207,7 @@ Codex uses dedicated `computeCodexPagination` logic, with rules similar to CC (l
 ### 3.4 ⚠️ Default Mode Gate (key difference)
 
 Codex has two operating modes:
-- **Suggest mode** — `request_user_input` is available → normal form flow
+- **Plan mode** — `request_user_input` is available → normal form flow
 - **Default mode** — the client blocks `request_user_input` calls
 
 **Default mode detection**: after the proxy sends a form, the client's `function_call_output.output` contains:
@@ -163,19 +285,22 @@ Codex's injection point is `body.instructions` (the Responses API equivalent of 
 
 ```env
 PROXY_PORT=8096
-# Codex upstream (usually tokenhub or copilot.tencent.com)
-# Dynamically routed by resolveForwardTarget
+# Docker: model upstream for ChatGPT subscription passthrough
+PROXY_UPSTREAM_URL=https://chatgpt.com/backend-api/codex
+# Client process: each person's Memory Hub key
+MEMORY_USER_KEY=<your own Memory Hub user_key>
 ```
 
-The local Codex upstream uses `https://copilot.tencent.com` (without /v1 or /v2).  
-Available models: `gpt-5.3-codex` / `gpt-5.4` / `gpt-5.5` / `gpt-5.6-*` / `deepseek-r1`; `claude-*` is strictly rejected.
+The model must be available to the caller's upstream account. Other deployments
+can use different upstreams; their authentication and model availability depend
+on that upstream's configuration.
 
 ---
 
 ## 10. FAQ
 
 **Q: Does Codex Default mode have no memory injection at all?**  
-A: Correct. Once the Default mode gate triggers, the proxy passes requests through without injection. This follows the Codex client's design: Default mode aims for minimal latency.
+A: Default mode blocks the interactive selection form. Supply valid team and agent headers to register directly, or initialize through the form in Plan mode. Memory capture and injection also depend on their respective proxy settings.
 
 **Q: What is the fc_ prefix issue?**  
 A: OpenAI Responses API validates function_call IDs with a regular expression requiring `fc_`. Proxy forms use `fc_codex_session_init_` for id and retain `call_` for call_id. Before the fix, the fifth replay request from the Codex client always returned 400.
@@ -195,5 +320,5 @@ A: Codex has a dedicated `codexHandler.ts`, but the underlying session-init stat
 | Protocol | Anthropic Messages | OpenAI Chat Completions | **OpenAI Responses** |
 | Configuration file | Environment variables | `~/.codebuddy/models.json` | `~/.codex/config.toml` |
 | URL prefix | `/claude-code/<spaceId>` | `/codebuddy/<spaceId>` | `/codex/<spaceId>` |
-| Key delivery | env `ANTHROPIC_AUTH_TOKEN` | JSON `apiKey` | TOML `experimental_bearer_token` |
-| Session init | Automatic form | Automatic form | **Manually switch to Plan mode for the first conversation** |
+| Key delivery | env `ANTHROPIC_AUTH_TOKEN` | JSON `apiKey` | `x-tdai-user-key` via `env_http_headers` (subscription); legacy bearer token |
+| Session init | Automatic form | Automatic form | **Team/agent headers, or Plan mode for the selection form** |

@@ -20,6 +20,8 @@ export interface MemCommandContext {
   spaceId: string;
   userId: string;
   apiKey: string;
+  /** MemoryCore user key; apiKey remains the model credential for task drafts. */
+  memoryUserKey?: string;
   sessionInfo: Record<string, unknown>;
   protocol: "anthropic" | "openai" | "responses";
   stream: boolean;

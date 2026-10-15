@@ -78,11 +78,11 @@ WORKDIR /app
 RUN groupadd -r app && useradd -r -g app -u 10001 -m app
 
 # 从 builder 拷贝整个 /app（含 node_modules 里指向 packages/cost-guard 的 file: 软链）
-COPY --from=deps-builder /app /app
+COPY --chown=app:app --from=deps-builder /app /app
 
 # 数据 / 日志目录（可作为 K8s PVC 挂载）
 RUN mkdir -p /data/tdai-memory-proxy /data/config /app/logs && \
-    chown -R app:app /app /data
+    chown -R app:app /app/logs /data
 
 USER app
 
