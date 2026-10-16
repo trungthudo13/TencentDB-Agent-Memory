@@ -34,19 +34,19 @@ creditReport:
 # Clients can now send x-tdai-user-key separately from model authentication.
 # Keep capture off until clients supply their Memory key and select a session.
 auth:
-  enabled: false
+  enabled: true
   url: http://memory:8420
   serviceToken: "${MEMORY_CORE_GATEWAY_API_KEY}"
 sessionInit:
-  enabled: false
+  enabled: true
 injection:
-  enabled: false
+  enabled: true
   assetReflection:
-    markerOptIn: false
+    markerOptIn: true
 extraction:
-  enabled: false
+  enabled: true
 tdai:
-  enabled: false
+  enabled: true
   endpoint: http://memory:8420
   apiKey: "${MEMORY_CORE_GATEWAY_API_KEY}"
   serviceId: default
@@ -60,7 +60,7 @@ skill:
   endpoint: http://memory:8420
   serviceToken: "${MEMORY_CORE_GATEWAY_API_KEY}"
 knowledge:
-  enabled: false
+  enabled: true
 
 opik:
   enabled: false
