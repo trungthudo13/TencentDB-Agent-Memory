@@ -153,13 +153,13 @@ export class PersonaGenerator {
     let changedScenesContent: string;
     if (changedSceneContents.length > 0) {
       changedScenesContent =
-        `\n\n## 📄 变化场景完整内容\n\n` +
-        `*自上次 Persona 更新后，以下 ${changedSceneContents.length} 个场景发生了变化。工程已为你预加载完整内容：*\n\n` +
+        `\n\n## 📄 Full content of changed scenes\n\n` +
+        `*The following ${changedSceneContents.length} scenes changed since the last Persona update. Their full content has been preloaded:*\n\n` +
         changedSceneContents.join("\n\n") +
         `\n\n---\n\n` +
-        `⚠️ **重点分析变化场景**：上述场景是自上次更新后的**新增/修改内容**，请**重点分析**这些场景中的新信息。\n`;
+        `⚠️ **Focus on changed scenes**: These scenes contain **new or modified content** since the last update. **Focus your analysis** on their new information.\n`;
     } else {
-      changedScenesContent = `\n\n⚠️ **无变化场景**：所有场景均已在上次 Persona 更新中分析过，本次可直接读取所有场景进行全局审视。\n`;
+      changedScenesContent = `\n\n⚠️ **No changed scenes**: All scenes were analyzed in the last Persona update. Read all scenes for a global review this time.\n`;
     }
 
     // 6. Build prompt

@@ -312,13 +312,13 @@ export function buildActiveMmdText(filename: string, mmdContent: string): string
 
   return [
     `<current_task_context>`,
-    `【当前活跃任务的mermaid流程图】这是你最近正在执行的任务的阶段性记录。`,
-    taskGoal ? `**任务目标:** ${taskGoal}` : "",
-    `**任务文件:** ${filename}`,
+    `[Active task Mermaid diagram] Progress recorded for your current task.`,
+    taskGoal ? `**Task goal:** ${taskGoal}` : "",
+    `**Task file:** ${filename}`,
     "```mermaid",
     mmdContent,
     "```",
-    `标记为 "doing" 的节点是近期焦点，"done" 的已完成。请参考此保持方向感，避免重复已完成的工作。`,
+    `Nodes marked "doing" are recent focus areas; "done" nodes are complete. Use this reference to stay on track and avoid repeating completed work.`,
     `</current_task_context>`,
   ]
     .filter((line) => line !== "")
@@ -340,9 +340,9 @@ export function buildHistoryMmdText(filename: string, mmdContent: string): strin
 
   return [
     `<history_task_context>`,
-    `【历史任务记录】以下是此前完成的任务的概要。`,
-    taskGoal ? `**任务目标:** ${taskGoal}` : "",
-    `**任务文件:** ${filename}`,
+    `[Historical task record] Summary of a previously completed task.`,
+    taskGoal ? `**Task goal:** ${taskGoal}` : "",
+    `**Task file:** ${filename}`,
     "```mermaid",
     mmdContent,
     "```",

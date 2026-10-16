@@ -6,25 +6,25 @@
 
 // ─── System Prompt ───────────────────────────────────────────────────────────
 
-export const L15_SYSTEM_PROMPT = `你是一个面向 AI 编码助手的"任务生命周期门神"。
-你的职责是交叉分析提供的三个输入源，精准研判任务状态，并输出纯 JSON 对象。
+export const L15_SYSTEM_PROMPT = `You are a task-lifecycle gatekeeper for an AI coding assistant.
+Cross-analyze the three provided input sources, determine task status precisely, and output only a JSON object.
 
-【输入数据利用指南（必须遵循的思考链路）】
-1. 第一步 - 剖析 recentMessages（识别意图）：根据当前和历史对话，提取用户最新回复的核心诉求。判断是"继续排查"、"宣布完工（如：跑通了）"、"单轮闲聊问答"还是"开启全新需求"。
-2. 第二步 - 对齐 currentMmd（评估当前基线）：将用户的最新意图与 currentMmd 的完整 Mermaid 内容进行比对——关注 taskGoal、各节点的 status（done/doing/todo）以及 summary。如果诉求完全超出了当前图表的范畴或目标已实现（所有节点 done 且无后续），则 taskCompleted 为 true。若仍在解决图表中的子问题（包括 doing 节点或修 bug），则为 false。(如果没有currentMmd，就只根据当前对话和历史对话来判断是否继续任务)
-3. 第三步 - 检索 availableMmds（判断是否延续）：如果判定要开启新任务（isLongTask=true 且 taskCompleted=true/当前无任务），必须扫描 availableMmds 的 taskGoal 和时间信息。若新诉求与列表中某个旧任务高度重合（如回到昨天没做完的模块），则是延续（isContinuation=true）。
+[Required input analysis]
+1. Analyze recentMessages (intent): extract the core request in the user's latest reply from current and historical conversation. Determine whether they want continued investigation, announce completion (such as "it works"), ask a one-turn question, or start a new request.
+2. Align with currentMmd (baseline): compare the latest intent with the complete Mermaid content, especially taskGoal, node status (done/doing/todo), and summary. Set taskCompleted=true if the request is outside the current graph's scope or the goal is achieved (all nodes done with no follow-up). Set false if still solving its subproblems, including doing nodes or bug fixes. If currentMmd is absent, use current and historical conversation to judge continuation.
+3. Search availableMmds (continuation): when starting a task (isLongTask=true and taskCompleted=true/no current task), scan taskGoal and timestamps in availableMmds. A request strongly overlapping a historical task (such as yesterday's unfinished module) is a continuation: isContinuation=true.
 
-【严格 JSON 输出格式】
-务必输出合法的纯 JSON 对象，格式如下：
+[Strict JSON output format]
+Output a valid JSON object in this shape:
 {
-  "taskCompleted": boolean, // 当前任务是否已结束（如果 currentMmd 为 none，这里必须填 true）
-  "isLongTask": boolean,    // 最新诉求是否是需要多步操作的复杂工程（普通技术问答、闲聊填 false）
-  "isContinuation": boolean, // 是否在延续 availableMmds 中的历史任务
-  "continuationMmdFile": "string|null", // 若延续旧任务，精确填入 availableMmds 中的文件名（不含路径前缀），否则为 null
-  "newTaskLabel": "string|null" // 若是全新长任务，生成简短标签（≤30字符，kebab-case，如 "refactor-api"），否则为 null
+  "taskCompleted": boolean, // Whether the current task ended; must be true when currentMmd is none
+  "isLongTask": boolean, // Whether the latest request requires complex, multistep work; false for ordinary technical questions or chat
+  "isContinuation": boolean, // Whether a historical task in availableMmds is continuing
+  "continuationMmdFile": "string|null", // Exact filename from availableMmds without a path prefix if continuing, otherwise null
+  "newTaskLabel": "string|null" // Short label for a new long task (≤30 characters, kebab-case, such as "refactor-api"), otherwise null
 }
 
-只输出纯 JSON 对象，绝不允许包含解释文字。`;
+Output only the JSON object, without explanatory text.`;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -58,9 +58,9 @@ export function buildL15UserPrompt(
 ): string {
   const parts: string[] = [];
 
-  parts.push("## 1. 最近的对话上下文 (Recent 6 messages):");
+  parts.push("## 1. Recent conversation context (Recent 6 messages):");
   parts.push(recentMessages);
-  parts.push("\n## 2. 当前挂载的任务图 (Active Mermaid — 完整内容):");
+  parts.push("\n## 2. Active task graph (Active Mermaid — full content):");
 
   if (currentMmd && currentMmd.filename) {
     parts.push(`**File:** ${currentMmd.filename}`);
@@ -69,13 +69,13 @@ export function buildL15UserPrompt(
     }
     parts.push(`\n\`\`\`mermaid\n${currentMmd.content}\n\`\`\``);
   } else {
-    parts.push("(none - 当前处于闲置状态，无活跃任务)");
+    parts.push("(none - currently idle, no active task)");
   }
 
-  parts.push("\n## 3. 历史可用的任务图 (Available Mermaid task files):");
+  parts.push("\n## 3. Historical task graphs (Available Mermaid task files):");
 
   if (metas.length === 0) {
-    parts.push("(none - 暂无历史长任务)");
+    parts.push("(none - no historical long tasks)");
   } else {
     for (const m of metas) {
       parts.push(`- **${m.filename}**`);
@@ -96,6 +96,6 @@ export function buildL15UserPrompt(
     }
   }
 
-  parts.push("请严格根据系统指令的【三步思考链路】进行研判，并输出合法的 JSON 对象。");
+  parts.push("Follow the system instruction's three-step analysis strictly and output a valid JSON object.");
   return parts.join("\n");
 }

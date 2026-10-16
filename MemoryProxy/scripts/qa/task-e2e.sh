@@ -77,5 +77,5 @@ if [[ "$CODE_U3" != "0" ]]; then echo -e "\nFAIL U3: code=$CODE_U3"; exit 1; fi
 echo -e "\n✅ U3 pass"
 
 echo -e "\n─────────────────────────────────────────────"
-echo "所有冒烟通过 ✅ (task_id=$TASK_ID)"
-echo "U1 场景需要新 session，可再跑一次并对不同 SID 直接 update-task 观察 404"
+echo "All smoke tests passed ✅ (task_id=$TASK_ID)"
+echo "U1 requires a new session; rerun with a different SID and call update-task directly to observe 404"

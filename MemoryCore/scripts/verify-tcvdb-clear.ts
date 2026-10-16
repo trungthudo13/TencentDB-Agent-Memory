@@ -27,7 +27,7 @@ const VDB_API_KEY = process.env.VDB_API_KEY;
 const VDB_USERNAME = process.env.VDB_USERNAME ?? "root";
 
 if (!VDB_URL || !VDB_API_KEY) {
-  console.error("需要环境变量 VDB_URL / VDB_API_KEY（不要写进代码或命令行历史）");
+  console.error("VDB_URL / VDB_API_KEY environment variables are required (do not put them in code or command history)");
   process.exit(2);
 }
 
@@ -134,7 +134,7 @@ async function waitCount(
 
 /** 护栏类断言：不依赖库里有数据，任何 schema 都应成立。 */
 async function runGuardChecks(store: TcvdbMemoryStore): Promise<void> {
-  console.log("\n4. 空值护栏（必须在发出删除请求前拒绝）");
+  console.log("\n4. Empty-value guard (must reject before sending a delete request)");
   for (const bad of [
     { teamId: "", agentId: "agt-x" },
     { teamId: "vt-x", agentId: "" },
@@ -142,13 +142,13 @@ async function runGuardChecks(store: TcvdbMemoryStore): Promise<void> {
   ]) {
     let threw = false;
     try { await store.clearMemoryContent(bad); } catch { threw = true; }
-    check(`clearMemoryContent 拒绝 teamId="${bad.teamId}" agentId="${bad.agentId}"`, threw);
+    check(`clearMemoryContent rejects teamId="${bad.teamId}" agentId="${bad.agentId}"`, threw);
   }
   for (const badSid of ["", "   "]) {
     let threw = false;
     try { await store.deleteL0BySession(badSid, { teamId: "vt-x", agentId: "agt-x" }); }
     catch { threw = true; }
-    check(`deleteL0BySession 拒绝空 sessionId（"${badSid}"）`, threw);
+    check(`deleteL0BySession rejects empty sessionId ("${badSid}")`, threw);
   }
 }
 
@@ -163,20 +163,20 @@ async function main() {
     logger: silentLogger,
   });
 
-  console.log(`\n临时库: ${TMP_DB}（跑完自动删除）`);
+  console.log(`\nTemporary database: ${TMP_DB}(automatically deleted when finished)`);
   await store.init();
 
   if ((store as unknown as { degraded: boolean }).degraded) {
     console.error(
-      "\n✗ store 处于 degraded 模式，集合创建失败。\n" +
-      "  常见原因：VDB 实例集合数已达上限 1500。\n" +
-      "  可先运行 scripts/probe-vdb-capacity.ts 查看余量。\n",
+      "\n✗ Store is degraded; collection creation failed.\n" +
+      "  Common cause: The VDB instance reached its 1500-collection limit.\n" +
+      "  Run scripts/probe-vdb-capacity.ts to check remaining capacity.\n",
     );
     process.exit(1);
   }
 
   try {
-    console.log("\n准备数据（L0 + L1）");
+    console.log("\nPreparing data (L0 + L1)");
     for (let i = 0; i < 3; i++) await store.upsertL0(l0(A, `rec-a-${i}`, `A msg ${i}`), undefined);
     for (let i = 0; i < 2; i++) await store.upsertL0(l0(B, `rec-b-${i}`, `B msg ${i}`), undefined);
     await store.upsertL0(l0(A2, "rec-a2-0", "A2 msg"), undefined);
@@ -188,67 +188,67 @@ async function main() {
     }
     l1WriteOk = (await store.upsertL1(l1(B, "mem-b-0", "B memory"))) && l1WriteOk;
     l1WriteOk = (await store.upsertL1(l1(A2, "mem-a2-0", "A2 memory"))) && l1WriteOk;
-    check("L1 写入调用全部返回成功", l1WriteOk);
+    check("All L1 writes returned success", l1WriteOk);
 
     const aN = await waitCount(store, A, 3);
     const bN = await waitCount(store, B, 2);
     const a2N = await waitCount(store, A2, 1);
-    check("A L0 写入 3 条", aN === 3, `实际 ${aN}`);
-    check("B L0 写入 2 条", bN === 2, `实际 ${bN}`);
-    check("A2 L0 写入 1 条（同 team 不同 agent）", a2N === 1, `实际 ${a2N}`);
+    check("A L0 wrote 3 records", aN === 3, `Actual ${aN}`);
+    check("B L0 wrote 2 records", bN === 2, `Actual ${bN}`);
+    check("A2 L0 wrote 1 record(same team, different agent)", a2N === 1, `Actual ${a2N}`);
 
     const aL1 = await waitCountL1(store, A, 2);
     const bL1 = await waitCountL1(store, B, 1);
     const a2L1 = await waitCountL1(store, A2, 1);
-    check("A L1 写入 2 条", aL1 === 2, `实际 ${aL1}`);
-    check("B L1 写入 1 条", bL1 === 1, `实际 ${bL1}`);
-    check("A2 L1 写入 1 条", a2L1 === 1, `实际 ${a2L1}`);
+    check("A L1 wrote 2 records", aL1 === 2, `Actual ${aL1}`);
+    check("B L1 wrote 1 record", bL1 === 1, `Actual ${bL1}`);
+    check("A2 L1 wrote 1 record", a2L1 === 1, `Actual ${a2L1}`);
 
     if (aN !== 3 || bN !== 2 || a2N !== 1 || aL1 !== 2 || bL1 !== 1) {
-      console.error("\n数据未就绪，后续断言无意义，提前退出");
+      console.error("\nData is not ready; remaining assertions are not meaningful. Exiting early");
       return;
     }
 
     // ── 1. 作用域正确性：真机上最关键的一条──
-    console.log("\n1. clearMemoryContent 作用域（L0 + L1 同时验证）");
+    console.log("\n1. clearMemoryContent scope (verify L0 + L1 together)");
     const r = await store.clearMemoryContent({ teamId: A.teamId, agentId: A.agentId });
-    check("返回 l0Deleted=3", r.l0Deleted === 3, `实际 ${r.l0Deleted}`);
-    check("返回 l1Deleted=2", r.l1Deleted === 2, `实际 ${r.l1Deleted}`);
+    check("Returns l0Deleted=3", r.l0Deleted === 3, `Actual ${r.l0Deleted}`);
+    check("Returns l1Deleted=2", r.l1Deleted === 2, `Actual ${r.l1Deleted}`);
 
-    check("A L0 已清空", (await waitCount(store, A, 0)) === 0);
-    check("A L1 已清空", (await waitCountL1(store, A, 0)) === 0);
-    check("B L0 不受影响（未跨 team 误删）", (await waitCount(store, B, 2)) === 2);
-    check("B L1 不受影响", (await waitCountL1(store, B, 1)) === 1);
-    check("A2 L0 不受影响（未跨 agent 误删）", (await waitCount(store, A2, 1)) === 1);
-    check("A2 L1 不受影响（未跨 agent 误删）", (await waitCountL1(store, A2, 1)) === 1);
+    check("A L0 cleared", (await waitCount(store, A, 0)) === 0);
+    check("A L1 cleared", (await waitCountL1(store, A, 0)) === 0);
+    check("B L0 unaffected (no accidental cross-team deletion)", (await waitCount(store, B, 2)) === 2);
+    check("B L1 unaffected", (await waitCountL1(store, B, 1)) === 1);
+    check("A2 L0 unaffected (no accidental cross-agent deletion)", (await waitCount(store, A2, 1)) === 1);
+    check("A2 L1 unaffected (no accidental cross-agent deletion)", (await waitCountL1(store, A2, 1)) === 1);
 
     // ── 2. 幂等 ──
-    console.log("\n2. 幂等性");
+    console.log("\n2. Idempotency");
     const again = await store.clearMemoryContent({ teamId: A.teamId, agentId: A.agentId });
-    check("重复清空 L0 返回 0", again.l0Deleted === 0, `实际 ${again.l0Deleted}`);
-    check("重复清空 L1 返回 0", again.l1Deleted === 0, `实际 ${again.l1Deleted}`);
+    check("Repeated L0 clearing returns 0", again.l0Deleted === 0, `Actual ${again.l0Deleted}`);
+    check("Repeated L1 clearing returns 0", again.l1Deleted === 0, `Actual ${again.l1Deleted}`);
 
     // ── 3. 清空后可继续写入（需求验收标准） ──
-    console.log("\n3. 清空后可继续写入");
+    console.log("\n3. Writes can continue after clearing");
     await store.upsertL0(l0(A, "rec-a-new", "A msg after clear"), undefined);
     await store.upsertL1(l1(A, "mem-a-new", "A memory after clear"));
-    check("清空后 L0 新写入可见", (await waitCount(store, A, 1)) === 1);
-    check("清空后 L1 新写入可见", (await waitCountL1(store, A, 1)) === 1);
+    check("New L0 writes visible after clearing", (await waitCount(store, A, 1)) === 1);
+    check("New L1 writes visible after clearing", (await waitCountL1(store, A, 1)) === 1);
 
     // ── 4. 护栏 ──
     await runGuardChecks(store);
-    check("护栏触发后 B 数据完好", (await waitCount(store, B, 2)) === 2);
+    check("B data intact after guard triggers", (await waitCount(store, B, 2)) === 2);
 
     // ── 5. deleteL0BySession 正常路径 ──
-    console.log("\n5. deleteL0BySession 正常路径");
+    console.log("\n5. deleteL0BySession normal path");
     const n = await store.deleteL0BySession(B.sessionId, {
       teamId: B.teamId, agentId: B.agentId, userId: B.userId,
     });
-    check("按 session 删除返回 2", n === 2, `实际 ${n}`);
-    check("B 已清空", (await waitCount(store, B, 0)) === 0);
-    check("A2 仍不受影响", (await waitCount(store, A2, 1)) === 1);
+    check("Deletion by session returns 2", n === 2, `Actual ${n}`);
+    check("B cleared", (await waitCount(store, B, 0)) === 0);
+    check("A2 still unaffected", (await waitCount(store, A2, 1)) === 1);
 
-    console.log(`\n结果：${pass} passed, ${fail} failed\n`);
+    console.log(`\nResults:${pass} passed, ${fail} failed\n`);
   } finally {
     // 无论成败都清掉临时库
     try {
@@ -257,10 +257,10 @@ async function main() {
         database: TMP_DB, timeout: 30_000, logger: silentLogger,
       });
       await admin.dropDatabase(TMP_DB);
-      console.log(`已删除临时库 ${TMP_DB}`);
+      console.log(`Deleted temporary database ${TMP_DB}`);
     } catch (err) {
       console.error(
-        `⚠️ 临时库 ${TMP_DB} 删除失败，请手动清理：` +
+        `⚠️ Temporary database ${TMP_DB} Deletion failed; clean up manually:` +
         `${err instanceof Error ? err.message : String(err)}`,
       );
     }

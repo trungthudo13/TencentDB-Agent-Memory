@@ -198,11 +198,11 @@ async function main() {
     // 3) 结论提示
     const peak = rows.reduce((a, b) => (b.qps > a.qps ? b : a));
     console.log(
-      `\n  峰值吞吐 ≈ ${peak.qps.toFixed(0)} QPS (${peak.label})`,
+      `\n  Peak throughput ≈ ${peak.qps.toFixed(0)} QPS (${peak.label})`,
     );
     console.log(
-      "  L1 单任务含 LLM 调用通常耗时 3-30s；若 concurrency=60，" +
-      `checkpoint 写入需求 ≈ ${(60 / 5).toFixed(0)} QPS，远低于上述峰值。`,
+      "  An L1 task including an LLM call typically takes 3-30s; with concurrency=60," +
+      `checkpoint write demand ≈ ${(60 / 5).toFixed(0)} QPS, well below the peak above.`,
     );
   } finally {
     await redis?.close();

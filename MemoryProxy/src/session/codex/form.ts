@@ -34,13 +34,13 @@ export const TOOLCALL_PREFIX = "call_codex_session_init_";
  */
 export const TOOLCALL_ID_PREFIX = "fc_codex_session_init_";
 
-export const TEAM_FORM_TITLE = "会话初始化 — 选择 Team";
-export const AGENT_TASK_FORM_TITLE = "会话初始化 — 选择 Agent 与任务";
-export const RETRY_FORM_TITLE = "未能识别选择，请重新选择";
+export const TEAM_FORM_TITLE = "Session initialization — Select Team";
+export const AGENT_TASK_FORM_TITLE = "Session initialization — Select Agent and Task";
+export const RETRY_FORM_TITLE = "Selection not recognized. Please select again";
 
-export const ASSET_CONFIRM_YES = "是，关联团队资产";
-export const ASSET_CONFIRM_NO = "否，本次不关联";
-export const ASSET_CONFIRM_FORM_TITLE = "会话初始化 — 是否关联团队资产";
+export const ASSET_CONFIRM_YES = "Yes, link team assets";
+export const ASSET_CONFIRM_NO = "No, skip linking";
+export const ASSET_CONFIRM_FORM_TITLE = "Session initialization — Link team assets";
 
 /**
  * codex 分页 "更多..." 选项的稳定标记（写在 option.label 里，用户点了会
@@ -51,7 +51,7 @@ export const ASSET_CONFIRM_FORM_TITLE = "会话初始化 — 是否关联团队�
  * MARKER 本身不进 label（避免"__..."字符污染 UI 显示）。
  */
 export const CODEX_MORE_MARKER = "__codex_more_marker__" as const;
-export const CODEX_MORE_LABEL = "更多...";
+export const CODEX_MORE_LABEL = "More...";
 
 /**
  * 客户端 Default 模式下 gate 拦截的前缀字符串。
@@ -64,7 +64,7 @@ export const DEFAULT_GATE_PREFIX = "request_user_input is unavailable in";
  * Codex 的 request_user_input 在 Plan 模式下展示 questions + options 给用户；
  * 跳过入口为「否，本次不关联」按钮。文案与 claude-code/workbuddy/codebuddy/dsh 五端统一。
  */
-const SKIP_HINT = '（请选择最匹配的选项，当前暂不支持自定义输入。若选择跳过，本次 Session 将不注入团队资产）';
+const SKIP_HINT = '(Select the closest option; custom input is currently unsupported. Skipping disables team asset injection for this session.)';
 
 /** Returns true if the given string contains any codex form title marker. */
 export function containsFormTitle(s: string): boolean {
@@ -395,14 +395,14 @@ function buildOptions(
 ): CodexOption[] {
   if (entries.length === 0) {
     return [
-      { label: "跳过", description: "本次不关联，直接开始对话" },
-      { label: "重试", description: "重新拉取列表再选" },
+      { label: "Skip", description: "Skip linking and start the conversation" },
+      { label: "Retry", description: "Refresh the list and select again" },
     ];
   }
   if (entries.length === 1) {
     return [
       entries[0]!,
-      { label: "跳过", description: "本次不关联，直接开始对话" },
+      { label: "Skip", description: "Skip linking and start the conversation" },
     ];
   }
 
@@ -418,18 +418,18 @@ function buildOptions(
   const morePageNo = safePage + 2; // human-facing (1-based, next page)
   const moreOption: CodexOption = {
     label: CODEX_MORE_LABEL,
-    description: `查看下一批候选（第 ${morePageNo}/${page.totalPages} 页，还剩 ${remaining} 个）`,
+    description: `View next options (page ${morePageNo}/${page.totalPages}, ${remaining} remaining)`,
   };
   return [...slice, moreOption];
 }
 
 function pageSuffix(pageIndex: number, totalPages: number): string {
-  return totalPages > 1 ? `（第 ${pageIndex + 1}/${totalPages} 页）` : "";
+  return totalPages > 1 ? `(page ${pageIndex + 1}/${totalPages})` : "";
 }
 
 function buildQuestions(data: FormData): CodexQuestion[] {
   const { teams, stage, selectedTeamId, retry } = data;
-  const retryHint = retry ? "（上次未识别，请重新选择）" : "";
+  const retryHint = retry ? "(Previous selection not recognized. Please select again.)" : "";
   const teamPage = Math.max(0, data.teamPage ?? 0);
   const agentPage = Math.max(0, data.agentPage ?? 0);
   const taskPage = Math.max(0, data.taskPage ?? 0);
@@ -437,16 +437,16 @@ function buildQuestions(data: FormData): CodexQuestion[] {
   if (stage === "asset_confirm") {
     return [{
       id: "asset_confirm",
-      header: clampHeader("是否关联资产"),
-      question: `本次对话是否要关联团队资产（Skill / Memory / Agent / Task / Knowledge）？${retryHint}`,
+      header: clampHeader("Link assets?"),
+      question: `Link team assets (Skill / Memory / Agent / Task / Knowledge) to this conversation?${retryHint}`,
       options: [
         {
           label: ASSET_CONFIRM_YES,
-          description: "接下来会请你选择 Team、Agent、Task，选完后每轮对话会自动注入相关资产。",
+          description: "Next, select a Team, Agent, and Task. Relevant assets will then be injected into each conversation turn.",
         },
         {
           label: ASSET_CONFIRM_NO,
-          description: "本次会话跳过团队资产，直接开始对话。",
+          description: "Skip team assets for this session and start the conversation.",
         },
       ],
     }];
@@ -455,13 +455,13 @@ function buildQuestions(data: FormData): CodexQuestion[] {
   if (stage === "team") {
     const entries = teams.map((t) => ({
       label: `${t.team_name} (${t.team_id.slice(-8)})`,
-      description: `Team ID: ${t.team_id}${t.agents?.length ? `，含 ${t.agents.length} 个 Agent` : ""}`,
+      description: `Team ID: ${t.team_id}${t.agents?.length ? `, ${t.agents.length} Agents` : ""}`,
     }));
     const pageInfo = computeCodexPagination(entries.length, teamPage);
     return [{
       id: "team_select",
-      header: clampHeader("选 Team"),
-      question: `请选择本次会话所属的 Team${pageSuffix(teamPage, pageInfo.totalPages)}${retryHint}：`,
+      header: clampHeader("Select Team"),
+      question: `Select the Team for this session${pageSuffix(teamPage, pageInfo.totalPages)}${retryHint}:`,
       options: buildOptions(entries, teamPage),
     }];
   }
@@ -481,8 +481,8 @@ function buildQuestions(data: FormData): CodexQuestion[] {
     const pageInfo = computeCodexPagination(entries.length, agentPage);
     questions.push({
       id: "agent_select",
-      header: clampHeader("选 Agent"),
-      question: `请选择「${team.team_name}」下要使用的 Agent${pageSuffix(agentPage, pageInfo.totalPages)}${retryHint}：`,
+      header: clampHeader("Select Agent"),
+      question: `Select an Agent in ${team.team_name}${pageSuffix(agentPage, pageInfo.totalPages)}${retryHint}:`,
       options: buildOptions(entries, agentPage),
     });
   }
@@ -492,15 +492,15 @@ function buildQuestions(data: FormData): CodexQuestion[] {
     const entries = team.tasks.map((t) => ({
       label: t.isDefault ? t.task_name : `${t.task_name} (${t.task_id.slice(-8)})`,
       description: t.isDefault
-        ? "该 Agent 的默认任务（推荐）"
+        ? "Default task for this Agent (recommended)"
         : `Task ID: ${t.task_id}`,
     }));
     const pageInfo = computeCodexPagination(entries.length, taskPage);
     const opts = buildOptions(entries, taskPage);
     questions.push({
       id: "task_select",
-      header: clampHeader("选 Task"),
-      question: `请选择「${team.team_name}」下关联的任务${pageSuffix(taskPage, pageInfo.totalPages)}${retryHint}：`,
+      header: clampHeader("Select Task"),
+      question: `Select a Task to link in ${team.team_name}${pageSuffix(taskPage, pageInfo.totalPages)}${retryHint}:`,
       options: opts,
     });
   }

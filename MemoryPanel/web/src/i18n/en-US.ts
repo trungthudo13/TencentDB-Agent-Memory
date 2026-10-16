@@ -1,6 +1,23 @@
 /** English translation — en-US */
 
 export const enUS = {
+  'memory.notify.editSuccess': 'Saved',
+  'memory.notify.editFailed': 'Failed to save',
+  'memory.notify.searchFailed': 'Search failed',
+  'memory.detail.editTitle': 'Edit {{layer}} content',
+  'memory.detail.save': 'Save',
+  'memory.detail.cancel': 'Cancel',
+  'memory.detail.search': 'Search',
+  'memory.detail.searchPlaceholder': 'Search this memory by meaning…',
+  'memory.detail.searchPlaceholderL0': 'Search L0 conversations in this memory…',
+  'memory.detail.searchPlaceholderL1': 'Search L1 atomic memories…',
+  'memory.detail.clearSearch': 'Clear',
+  'memory.detail.searchResultCount': '{{count}} relevant results',
+  'memory.detail.searchEmpty': 'No relevant memories found. Try another keyword.',
+  'memory.detail.searchScore': 'Relevance {{score}}',
+  'memory.detail.modeBrowse': 'Browse',
+  'memory.detail.modeSearch': 'Search',
+  'memory.detail.searchPrompt': 'Enter keywords to search this memory by meaning. Results are ranked by relevance, regardless of the selected time range.',
   // ===== App =====
   'app.checkingSession': 'Checking session…',
 

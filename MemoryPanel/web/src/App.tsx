@@ -21,8 +21,8 @@ import { useAuthStore } from '@/stores/auth';
 import { router } from '@/routes';
 
 /** react-i18next 语言 → tea-component locale 映射 */
-function toTeaLocale(lang: string): 'zh' | 'en' {
-  return lang.startsWith('zh') ? 'zh' : 'en';
+function toTeaLocale(_lang: string): 'zh' | 'en' {
+  return 'en';
 }
 
 export default function App() {

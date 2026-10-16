@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """
-Opik Trace → Memory Core Skill 抽取导入工具（Python 版）
+Opik Trace → Memory Core Skill extraction import tool (Python)
 
-设计目标（比 TS 版更保守、更简单）:
-  - 分批下载 Opik 数据 + 分页限速，避免打爆 Opik
-  - 同 thread_id 的 trace 只取消息数最大的那条（Opik 累积快照语义）
-  - 不同 session 之间可并发（--concurrency 控制上限）
-  - 同一 session 内严格串行；一条对话（user + assistant 一组）灌完 sleep 一下
-  - 每次 conversation/add 都带同一个 session_id，一条 user + 一条 assistant 一组一组灌
-  - 灌完 force-archive 兜底
-  - 不写断点、不轮询 skill/list —— 保持简单，产出稍后自己看
+Design goals (more conservative and simpler than the TypeScript version):
+  - Download Opik data in batches with page-level throttling.
+  - For traces sharing a thread_id, retain the trace with the most messages
+    (Opik cumulative snapshot semantics).
+  - Process different sessions concurrently (limited by --concurrency).
+  - Process each session sequentially, pausing after each user/assistant turn.
+  - Use the same session_id for every conversation/add call in a session.
+  - Call force-archive when the import finishes as a fallback.
+  - Do not write checkpoints or poll skill/list; keep the workflow simple and
+    inspect results later.
 
-用法参见同目录 README.md。
+See README.md in this directory for usage.
 """
 
 from __future__ import annotations
@@ -96,7 +98,7 @@ def normalize_opik_base(url: str, workspace_hint: Optional[str]) -> tuple[str, s
     """UI 地址或 API 地址都归一化到 /api/v1/private，同时探明 workspace。"""
     parsed = urllib.parse.urlparse(url)
     if parsed.username or parsed.password:
-        raise ValueError("OPIK_URL 不允许包含凭据，请用环境变量")
+        raise ValueError("OPIK_URL must not contain credentials; use environment variables")
     parts = [p for p in parsed.path.split("/") if p]
     workspace_from_ui = parts[0] if parts and parts[0] not in {"api", "v1"} else None
 
@@ -147,7 +149,7 @@ class OpikClient:
         url = f"{self.api_base}{path}?{urllib.parse.urlencode(params)}"
         data = http_request("GET", url, headers=self._headers(), timeout=self.timeout, retries=self.retries)
         if not isinstance(data, dict) or "content" not in data or "total" not in data:
-            raise RuntimeError(f"Opik 响应格式异常: {url}")
+            raise RuntimeError(f"Unexpected Opik response format: {url}")
         return data
 
     def list_projects(self) -> list[dict[str, Any]]:
@@ -545,7 +547,7 @@ class MemoryCoreClient:
             code = resp.get("code") if isinstance(resp, dict) else "?"
             msg = resp.get("message") if isinstance(resp, dict) else str(resp)
             rid = resp.get("request_id", "-") if isinstance(resp, dict) else "-"
-            raise RuntimeError(f"{path} 失败: code={code} message={msg} request_id={rid}")
+            raise RuntimeError(f"{path} failed: code={code} message={msg} request_id={rid}")
         return resp.get("data") or {}
 
     def conversation_add(self, session_id: str, messages: list[dict[str, Any]]) -> dict[str, Any]:
@@ -661,10 +663,10 @@ class Logger:
 
 def require_id(v: Optional[str], name: str) -> str:
     if not v:
-        raise SystemExit(f"缺少 {name}")
+        raise SystemExit(f"Missing {name}")
     v = v.strip()
     if FORBIDDEN_ID_CHAR in v:
-        raise SystemExit(f"{name} 不能包含 '|'（队列元素分隔符）")
+        raise SystemExit(f"{name} must not contain '|' (queue element separator)")
     return v
 
 
@@ -680,14 +682,14 @@ def resolve_project(projects: list[dict[str, Any]], selector: str) -> dict[str, 
     if len(id_prefix) == 1:
         return id_prefix[0]
     if len(id_prefix) > 1:
-        raise SystemExit(f"--project '{selector}' 匹配到 {len(id_prefix)} 个项目 id，请给更长前缀或用精确 id")
+        raise SystemExit(f"--project '{selector}' matches {len(id_prefix)} project IDs; provide a longer prefix or an exact ID")
     # 3) name 前缀
     name_prefix = [p for p in projects if isinstance(p.get("name"), str) and p["name"].startswith(selector)]
     if len(name_prefix) == 1:
         return name_prefix[0]
     if len(name_prefix) > 1:
-        raise SystemExit(f"--project '{selector}' 匹配到 {len(name_prefix)} 个项目 name，请给更长前缀或用精确 name")
-    raise SystemExit(f"--project '{selector}' 未匹配任何项目；先跑 --list-projects 查看可选项")
+        raise SystemExit(f"--project '{selector}' matches {len(name_prefix)} project names; provide a longer prefix or an exact name")
+    raise SystemExit(f"--project '{selector}' does not match any project; run --list-projects to see available options")
 
 
 def parse_args() -> argparse.Namespace:
@@ -698,20 +700,20 @@ def parse_args() -> argparse.Namespace:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     # ── list-projects ────────────────────────────────────────────
-    lp = sub.add_parser("list-projects", help="只列 Opik 项目")
-    lp.add_argument("--opik-url", required=True, help="Opik UI 或 API 地址")
-    lp.add_argument("--workspace", default="default", help="Opik workspace（默认 default）")
+    lp = sub.add_parser("list-projects", help="List Opik projects only")
+    lp.add_argument("--opik-url", required=True, help="Opik UI or API URL")
+    lp.add_argument("--workspace", default="default", help="Opik workspace (default: default)")
     lp.add_argument("--page-size", type=int, default=100)
     lp.add_argument("--opik-request-gap-ms", type=int, default=500)
     lp.add_argument("--timeout-ms", type=int, default=30000)
     lp.add_argument("--retries", type=int, default=4)
 
     # ── fetch：只拉 Opik + 聚合 + 写本地 JSON ────────────────────
-    f = sub.add_parser("fetch", help="从 Opik 拉数据并聚合成本地 session 文件（不写 core）")
-    f.add_argument("--opik-url", required=True, help="Opik UI 或 API 地址")
-    f.add_argument("--workspace", default="default", help="Opik workspace（默认 default）")
-    f.add_argument("--project", required=True, help="项目 name / id / 前缀")
-    f.add_argument("--out-dir", required=True, help="输出目录（每个 session 一个 .json 文件）")
+    f = sub.add_parser("fetch", help="Fetch Opik data and aggregate into local session files (without writing to core)")
+    f.add_argument("--opik-url", required=True, help="Opik UI or API URL")
+    f.add_argument("--workspace", default="default", help="Opik workspace (default: default)")
+    f.add_argument("--project", required=True, help="Project name / ID / prefix")
+    f.add_argument("--out-dir", required=True, help="Output directory (one .json file per session)")
     f.add_argument("--max-traces", type=int, default=0)
     f.add_argument("--max-sessions", type=int, default=0)
     f.add_argument("--page-size", type=int, default=100)
@@ -719,25 +721,25 @@ def parse_args() -> argparse.Namespace:
     f.add_argument("--include-system", action="store_true")
     f.add_argument("--timeout-ms", type=int, default=30000)
     f.add_argument("--retries", type=int, default=4)
-    f.add_argument("--overwrite", action="store_true", help="已存在的 session 文件覆盖（默认跳过）")
+    f.add_argument("--overwrite", action="store_true", help="Overwrite existing session files (skipped by default)")
 
     # ── import：从本地 JSON 目录读并灌 core ─────────────────────
-    im = sub.add_parser("import", help="把 fetch 出来的本地 session 灌到 Memory Core")
-    im.add_argument("--in-dir", required=True, help="fetch 生成的目录")
-    im.add_argument("--memory-url", required=True, help="Memory Core Gateway 地址")
+    im = sub.add_parser("import", help="Import locally fetched sessions into Memory Core")
+    im.add_argument("--in-dir", required=True, help="Directory generated by fetch")
+    im.add_argument("--memory-url", required=True, help="Memory Core Gateway URL")
     im.add_argument("--service-id", required=True, help="x-tdai-service-id / space_id")
     im.add_argument("--team-id", required=True)
-    im.add_argument("--agent-id", required=True, help="⚠️ 前缀是 agt- 不是 apt-")
+    im.add_argument("--agent-id", required=True, help="⚠️ The prefix is agt-, not apt-")
     im.add_argument("--user-id", required=True)
-    im.add_argument("--task-id", default=None, help="可选审计 tag")
+    im.add_argument("--task-id", default=None, help="Optional audit tag")
     im.add_argument("--max-sessions", type=int, default=0)
-    im.add_argument("--concurrency", type=int, default=2, help="不同 session 之间并发上限（默认 2）")
-    im.add_argument("--turn-gap-ms", type=int, default=3000, help="同 session 每轮间隔（默认 3000ms）")
+    im.add_argument("--concurrency", type=int, default=2, help="Maximum concurrent sessions (default: 2)")
+    im.add_argument("--turn-gap-ms", type=int, default=3000, help="Interval between turns in the same session (default: 3000ms)")
     im.add_argument("--no-force-archive", dest="force_archive", action="store_false")
     im.set_defaults(force_archive=True)
-    im.add_argument("--dry-run", action="store_true", help="读取但不写 core")
-    im.add_argument("--state-file", default=None, help="断点文件（默认 <in-dir>/.import-state.json）")
-    im.add_argument("--no-resume", action="store_true", help="忽略断点重新灌")
+    im.add_argument("--dry-run", action="store_true", help="Read without writing to core")
+    im.add_argument("--state-file", default=None, help="Checkpoint file (default: <in-dir>/.import-state.json)")
+    im.add_argument("--no-resume", action="store_true", help="Ignore checkpoints and import again")
     im.add_argument("--timeout-ms", type=int, default=30000)
     im.add_argument("--retries", type=int, default=4)
 
@@ -792,7 +794,7 @@ def load_session(path: str) -> Session:
 
 def list_session_files(in_dir: str) -> list[str]:
     if not os.path.isdir(in_dir):
-        raise SystemExit(f"--in-dir 不是目录: {in_dir}")
+        raise SystemExit(f"--in-dir is not a directory: {in_dir}")
     return sorted(
         os.path.join(in_dir, name)
         for name in os.listdir(in_dir)
@@ -833,7 +835,7 @@ class ResumeState:
 
 def cmd_list_projects(args: argparse.Namespace, log: Logger) -> int:
     if not args.opik_url:
-        raise SystemExit("缺少 --opik-url 或 OPIK_URL")
+        raise SystemExit("Missing --opik-url or OPIK_URL")
     api_base, workspace = normalize_opik_base(args.opik_url, args.workspace)
     opik = OpikClient(
         api_base=api_base, workspace=workspace,
@@ -845,7 +847,7 @@ def cmd_list_projects(args: argparse.Namespace, log: Logger) -> int:
     )
     log.info(f"opik={api_base} workspace={workspace}")
     projects = opik.list_projects()
-    log.info(f"共 {len(projects)} 个项目")
+    log.info(f"Total projects: {len(projects)}")
     for p in projects:
         print(f"  {p.get('name', '?')}\t{p.get('id')}")
     return 0
@@ -853,7 +855,7 @@ def cmd_list_projects(args: argparse.Namespace, log: Logger) -> int:
 
 def cmd_fetch(args: argparse.Namespace, log: Logger) -> int:
     if not args.opik_url:
-        raise SystemExit("缺少 --opik-url 或 OPIK_URL")
+        raise SystemExit("Missing --opik-url or OPIK_URL")
     api_base, workspace = normalize_opik_base(args.opik_url, args.workspace)
     opik = OpikClient(
         api_base=api_base, workspace=workspace,
@@ -867,10 +869,10 @@ def cmd_fetch(args: argparse.Namespace, log: Logger) -> int:
 
     projects = opik.list_projects()
     project = resolve_project(projects, args.project)
-    log.info(f"目标项目 name={project.get('name')} id={project.get('id')}")
+    log.info(f"Target project name={project.get('name')} id={project.get('id')}")
 
     log.info(
-        f"开始拉取 traces（page_size={args.page_size} gap={args.opik_request_gap_ms}ms "
+        f"Fetching traces（page_size={args.page_size} gap={args.opik_request_gap_ms}ms "
         f"max_traces={args.max_traces or 'unlimited'}）"
     )
     # 分两步：先流式拉全部 trace（有进度），再本地聚合 → 写文件
@@ -878,15 +880,15 @@ def cmd_fetch(args: argparse.Namespace, log: Logger) -> int:
     for i, trace in enumerate(opik.iter_traces(project["id"], max_traces=args.max_traces), start=1):
         traces.append(trace)
         if i % 200 == 0:
-            log.info(f"[fetch] 已拉取 traces={i}")
-    log.info(f"[fetch] 拉取完成 traces={len(traces)}")
+            log.info(f"[fetch] Fetched traces={i}")
+    log.info(f"[fetch] Fetch complete; traces={len(traces)}")
 
     sessions = collect_sessions(project["id"], iter(traces), args.include_system)
-    log.info(f"[fetch] 聚合出 sessions={len(sessions)}")
+    log.info(f"[fetch] Aggregated sessions={len(sessions)}")
 
     if args.max_sessions:
         sessions = sessions[: args.max_sessions]
-        log.info(f"[fetch] 按 --max-sessions 截断到 {len(sessions)} 个")
+        log.info(f"[fetch] Limited to {len(sessions)} by --max-sessions")
 
     os.makedirs(args.out_dir, exist_ok=True)
     manifest_path = os.path.join(args.out_dir, "manifest.json")
@@ -913,7 +915,7 @@ def cmd_fetch(args: argparse.Namespace, log: Logger) -> int:
         total_msgs += len(s.messages)
         total_turns += len(group_into_turns(s.messages))
     log.info(
-        f"[fetch] 写入 {written} 个 session 文件（skip 已存在 {skipped}），"
+        f"[fetch] Wrote {written} session files (skipped {skipped} existing), "
         f"messages={total_msgs} turns={total_turns} → {args.out_dir}"
     )
     return 0
@@ -922,20 +924,20 @@ def cmd_fetch(args: argparse.Namespace, log: Logger) -> int:
 def cmd_import(args: argparse.Namespace, log: Logger) -> int:
     files = list_session_files(args.in_dir)
     if not files:
-        raise SystemExit(f"{args.in_dir} 下没有 session .json 文件")
-    log.info(f"[import] 发现 {len(files)} 个 session 文件在 {args.in_dir}")
+        raise SystemExit(f"{args.in_dir} contains no session .json files")
+    log.info(f"[import] Found {len(files)} session files in {args.in_dir}")
 
     if args.max_sessions:
         files = files[: args.max_sessions]
-        log.info(f"[import] 按 --max-sessions 截断到 {len(files)} 个")
+        log.info(f"[import] Limited to {len(files)} by --max-sessions")
 
     core: Optional[MemoryCoreClient] = None
     if not args.dry_run:
         api_key = os.environ.get("MEMORY_CORE_API_KEY")
         if not api_key:
-            raise SystemExit("缺少 MEMORY_CORE_API_KEY")
+            raise SystemExit("Missing MEMORY_CORE_API_KEY")
         if not args.memory_url:
-            raise SystemExit("缺少 --memory-url 或 MEMORY_CORE_URL")
+            raise SystemExit("Missing --memory-url or MEMORY_CORE_URL")
         core = MemoryCoreClient(
             base_url=args.memory_url.rstrip("/"),
             api_key=api_key,
@@ -952,7 +954,7 @@ def cmd_import(args: argparse.Namespace, log: Logger) -> int:
     state_path = args.state_file or os.path.join(args.in_dir, ".import-state.json")
     state = ResumeState(state_path)
     if not args.no_resume and state.done:
-        log.info(f"[import] 断点：已完成 {len(state.done)} 个 session，会跳过（--no-resume 可禁用）")
+        log.info(f"[import] Checkpoint: {len(state.done)} completed sessions will be skipped (disable with --no-resume)")
 
     # 预扫描算规模（用于 ETA / 进度）
     sessions_and_files: list[tuple[str, Session]] = []
@@ -970,14 +972,14 @@ def cmd_import(args: argparse.Namespace, log: Logger) -> int:
         todo_turns += len(group_into_turns(s.messages))
 
     log.info(
-        f"[import] 总 sessions={len(sessions_and_files)} (已完成 {already}, 待办 {len(sessions_and_files)-already}) "
-        f"总 turns={total_turns} 待办 turns={todo_turns}"
+        f"[import] Total sessions={len(sessions_and_files)} (completed {already}, pending {len(sessions_and_files)-already}) "
+        f"Total turns={total_turns} Pending turns={todo_turns}"
     )
     # 粗略 ETA：todo_turns × turn_gap / concurrency
     eta_s = (todo_turns * args.turn_gap_ms / 1000) / max(1, args.concurrency)
     log.info(
-        f"[import] 并发={args.concurrency} turn-gap={args.turn_gap_ms}ms → 粗略 ETA ~{int(eta_s // 60)}m{int(eta_s % 60)}s "
-        f"（HTTP 耗时另计）"
+        f"[import] Concurrency={args.concurrency} turn-gap={args.turn_gap_ms}ms → Approximate ETA ~{int(eta_s // 60)}m{int(eta_s % 60)}s "
+        f"(excluding HTTP duration)"
     )
 
     # 进度计数
@@ -1041,7 +1043,7 @@ def main() -> int:
         return cmd_fetch(args, log)
     if args.cmd == "import":
         return cmd_import(args, log)
-    raise SystemExit(f"未知子命令: {args.cmd}")
+    raise SystemExit(f"Unknown subcommand: {args.cmd}")
 
 
 if __name__ == "__main__":

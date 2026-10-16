@@ -393,7 +393,7 @@ export class TcvdbMemoryStore implements IMemoryStore {
           collection: this.l1Collection,
           shardNum: 1,
           replicaNum: 2,
-          description: "L1 结构化记忆",
+          description: "L1 structured memories",
           embedding: {
             status: "enabled",
             field: "text",
@@ -427,7 +427,7 @@ export class TcvdbMemoryStore implements IMemoryStore {
           collection: this.l0Collection,
           shardNum: 1,
           replicaNum: 2,
-          description: "L0 原始对话消息",
+          description: "L0 original conversation messages",
           embedding: {
             status: "enabled",
             field: "message_text",
@@ -452,7 +452,7 @@ export class TcvdbMemoryStore implements IMemoryStore {
         collection: this.profilesCollection,
         shardNum: 1,
         replicaNum: 2,
-        description: "L2 场景块 + L3 用户画像",
+        description: "L2 scene blocks + L3 user profiles",
         embedding: { status: "disabled" },
         indexes: [
           { fieldName: "id",            fieldType: "string", indexType: "primaryKey" },
@@ -478,7 +478,7 @@ export class TcvdbMemoryStore implements IMemoryStore {
         collection: this.auditCollection,
         shardNum: 1,
         replicaNum: 2,
-        description: "Memory 修改审计：L1/L2/L3 update/delete 事件流",
+        description: "Memory change audit: L1/L2/L3 update/delete event stream",
         embedding: { status: "disabled" },
         indexes: [
           { fieldName: "id",            fieldType: "string", indexType: "primaryKey" },

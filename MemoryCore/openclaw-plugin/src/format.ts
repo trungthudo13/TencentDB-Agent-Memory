@@ -23,18 +23,18 @@ interface SceneEntry {
 
 // ── Memory Tools Guide ──
 const MEMORY_TOOLS_GUIDE = `<memory-tools-guide>
-## 记忆工具调用指南
+## Memory tool usage guide
 
-当上方注入的记忆片段不足以回答用户问题时，可主动调用以下工具获取更多信息：
+When the injected memory excerpts above are insufficient to answer the user, use these tools to obtain more information:
 
-- **tdai_memory_search**：搜索结构化记忆（L1），适用于回忆用户偏好、历史事件、规则等。
-- **tdai_conversation_search**：搜索原始对话（L0），适用于查找具体消息原文、时间线、上下文细节。
-- **tdai_read_file**：读取记忆文件详情（使用下方 Scene Navigation 中的完整相对路径，如 scene_blocks/xxx.md；也可读 persona.md）。
+- **tdai_memory_search**: Search structured memories (L1) for user preferences, historical events, rules, and similar information.
+- **tdai_conversation_search**: Search original conversations (L0) for exact messages, timelines, and context.
+- **tdai_read_file**: Read memory file details using the complete relative path from Scene Navigation below, such as scene_blocks/xxx.md; persona.md is also supported.
 
-### ⚠️ 调用次数限制
-每轮对话中，tdai_memory_search 和 tdai_conversation_search **合计最多调用 3 次**。
-- 首次搜索无结果时，可换关键词或换工具重试，但总调用次数不要超过 3 次。
-- 若 3 次搜索后仍无结果，说明该信息不在记忆中，请直接根据已有信息回复用户。
+### ⚠️ Call limit
+Use tdai_memory_search and tdai_conversation_search **at most 3 times combined per conversation turn**.
+- If the first search returns no results, retry with different keywords or the other tool without exceeding 3 total calls.
+- If 3 searches return no results, the information is absent from memory. Answer using the information already available.
 </memory-tools-guide>`;
 
 /**
@@ -79,7 +79,7 @@ function formatSystemContext(
   if (scenes.length > 0 && (!persona || !persona.includes("Scene Navigation"))) {
     parts.push("");
     parts.push("## 🗺️ Scene Navigation");
-    parts.push("*以下是当前场景记忆索引，可使用 tdai_read_file 读取详细内容。*");
+    parts.push("*Index of current scene memories. Use tdai_read_file to read details.*");
     parts.push("");
     for (const scene of scenes) {
       parts.push(`- \`${scene.path}\``);

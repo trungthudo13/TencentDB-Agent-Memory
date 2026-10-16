@@ -147,17 +147,17 @@ export async function generateWikiSummary(
     .map((p) => `- ${p.title}${p.description ? `: ${p.description.slice(0, 80)}` : ""}`)
     .join("\n");
 
-  const prompt = `请为以下知识库生成一个不超过100字的中文摘要，描述它的主要内容和用途。只输出摘要文本，不要输出其他内容。
+  const prompt = `Generate an English summary of no more than 100 characters for the following knowledge base, describing its main content and purpose. Output only the summary text and nothing else.
 
-知识库名称：${name}
-包含的页面：
+Knowledge base name: ${name}
+Included pages:
 ${pageList}`;
 
   console.info(`${TAG} wiki summary LLM call start for ${wikiId} (model=${llm.model}, protocol=${llm.protocol}, pages=${pages.length})`);
   try {
     const client = createLlmClient(llm);
     const text = await client.chat({
-      system: "你是一个知识库摘要生成器。只输出摘要文本，不要输出其他内容。",
+      system: "You are a knowledge base summary generator. Output only the summary text and nothing else.",
       prompt,
       maxOutputTokens: 1024,
       temperature: 0.3,
@@ -174,7 +174,7 @@ ${pageList}`;
 
 /**
  * Generate code-graph summary via template (no LLM call).
- * Format: "{repo_name}（{branch}）- {files} 个文件、{nodes} 个符号节点"
+ * Format: "{repo_name} ({branch}) - {files} files, {nodes} symbol nodes"
  */
 export function generateCodeGraphSummary(
   repoName: string,
@@ -182,7 +182,7 @@ export function generateCodeGraphSummary(
   stats: { files: number; nodes: number; edges: number } | null,
 ): string {
   if (!stats) {
-    return `${repoName}（${branch}）`;
+    return `${repoName} (${branch})`;
   }
-  return `${repoName}（${branch}）- ${stats.files} 个文件、${stats.nodes} 个符号节点`.slice(0, 256);
+  return `${repoName} (${branch}) - ${stats.files} files, ${stats.nodes} symbol nodes`.slice(0, 256);
 }

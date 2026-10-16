@@ -38,7 +38,7 @@ const TITLE_MAX_LEN = 40;
 
 function trimDesc(desc: string | undefined | null): string {
   const text = desc ?? "";
-  if (text.length === 0) return "(空)";
+  if (text.length === 0) return "(empty)";
   return text.length > DESC_PREVIEW_LEN ? `${text.slice(0, DESC_PREVIEW_LEN)}...` : text;
 }
 
@@ -87,28 +87,28 @@ export async function executeCreateTask(ctx: MemCommandContext): Promise<MemComm
 
     if (result.noPending) {
       return finalize(
-        `⚠️ 没有待确认的 Task 操作（可能已超时或被取消）。请重新执行 \`mem:create-task [标题]\`。`,
+        `⚠️ No pending Task operation (it may have expired or been canceled). Run again: \`mem:create-task [title]\`.`,
         false,
         { reason: "no_pending" },
       );
     }
     if (!result.success) {
       return finalize(
-        `❌ Task 创建失败：${result.error ?? "unknown error"}`,
+        `❌ Task creation failed: ${result.error ?? "unknown error"}`,
         false,
         { reason: "create_failed", detail: result.error },
       );
     }
 
     const prevLine = result.previousTaskId
-      ? `\n\n（已解除原绑定 Task \`${result.previousTaskId}\`）`
+      ? `\n\n (Previously linked Task unlinked: \`${result.previousTaskId}\`)`
       : "";
     return finalize(
-      `✅ 已创建并绑定新 Task。\n\n` +
-        `- **标题**：${result.title}\n` +
-        `- **状态**：${result.status ?? "running"}\n` +
-        `- **描述**：${trimDesc(result.description)}\n` +
-        `- **Task ID**：\`${result.taskId}\`${prevLine}`,
+      `✅ New Task created and linked.\n\n` +
+        `- **Title**: ${result.title}\n` +
+        `- **Status**: ${result.status ?? "running"}\n` +
+        `- **Description**: ${trimDesc(result.description)}\n` +
+        `- **Task ID**:\`${result.taskId}\`${prevLine}`,
       true,
       {
         task_id: result.taskId,
@@ -131,14 +131,14 @@ export async function executeCreateTask(ctx: MemCommandContext): Promise<MemComm
     });
     if (!result.success) {
       return finalize(
-        `⚠️ 取消失败：${result.error ?? "unknown"}`,
+        `⚠️ Cancellation failed: ${result.error ?? "unknown"}`,
         false,
         { reason: "cancel_failed", detail: result.error },
       );
     }
     const msg = result.cancelled
-      ? `✅ 已取消待确认的 Task 操作。`
-      : `ℹ️ 当前没有待确认的 Task 操作。`;
+      ? `✅ Pending Task operation canceled.`
+      : `ℹ️ No pending Task operation.`;
     return finalize(msg, true, { cancelled: result.cancelled ?? false });
   }
 
@@ -148,8 +148,8 @@ export async function executeCreateTask(ctx: MemCommandContext): Promise<MemComm
 
   if (recentMessages.length === 0) {
     return finalize(
-      `⚠️ 当前请求未携带对话消息，\`mem:create-task\` 需要最近对话作为上下文才能生成 Task。` +
-        `\n\n提示：请先与 AI 进行几轮对话后再执行此命令。`,
+      `⚠️ The request contains no conversation messages. \`mem:create-task\` requires recent conversation context to generate a Task.` +
+        `\n\nTip: Have a few conversation turns with the AI before running this command.`,
       false,
       { reason: "no_recent_messages" },
     );
@@ -176,9 +176,9 @@ export async function executeCreateTask(ctx: MemCommandContext): Promise<MemComm
     const detail = result.error ?? "unknown error";
     const hintLine = lockedTitle
       ? ""
-      : "\n\n你可以：\n1. 稍后重试\n2. `mem:create-task <你的标题>` 手动指定标题（LLM 只生成描述，即便失败也会用空描述兜底）";
+      : "\n\nYou can:\n1. Retry later\n2. `mem:create-task <your title>` specify a title manually (the LLM generates only the description; an empty description is used if generation fails)";
     return finalize(
-      `❌ Task 创建失败：${detail}${hintLine}`,
+      `❌ Task creation failed: ${detail}${hintLine}`,
       false,
       { reason: "create_failed", detail },
     );
@@ -188,17 +188,17 @@ export async function executeCreateTask(ctx: MemCommandContext): Promise<MemComm
   if (result.pending && result.pending.kind === "create") {
     const p = result.pending;
     const currentLine = p.currentTaskTitle
-      ? `\`${p.currentTaskId}\`「${p.currentTaskTitle}」`
+      ? `\`${p.currentTaskId}\`“${p.currentTaskTitle}”`
       : `\`${p.currentTaskId}\``;
     return finalize(
-      `⚠️ 当前会话已绑定 Task ${currentLine}。\n\n` +
-        `**新 Task 预览**\n` +
-        `- 标题：${p.draftTitle}\n` +
-        `- 描述：${trimDesc(p.draftDescription)}\n\n` +
-        `请选择下一步：\n` +
-        `1. \`mem:create-task confirm\` — 覆盖当前绑定，创建新 Task\n` +
-        `2. \`mem:update-task\` 或 \`mem:update-task <新描述>\` — 继续复用当前 Task，只更新描述（不新建）\n` +
-        `3. \`mem:create-task cancel\` — 取消，不做任何改动`,
+      `⚠️ This session is already linked to Task ${currentLine}.\n\n` +
+        `**New Task preview**\n` +
+        `- Title: ${p.draftTitle}\n` +
+        `- Description: ${trimDesc(p.draftDescription)}\n\n` +
+        `Choose the next step:\n` +
+        `1. \`mem:create-task confirm\` — Replace the current link and create a new Task\n` +
+        `2. \`mem:update-task\` or \`mem:update-task <new description>\` — Reuse the current Task and update only its description (without creating a new one)\n` +
+        `3. \`mem:create-task cancel\` — Cancel without making changes`,
       true,
       {
         reason: "pending",
@@ -215,12 +215,12 @@ export async function executeCreateTask(ctx: MemCommandContext): Promise<MemComm
 
   // 未绑分支：直接落库成功
   return finalize(
-    `✅ Task 已创建并绑定到本会话。\n\n` +
-      `- **标题**：${result.title}\n` +
-      `- **状态**：${result.status ?? "running"}\n` +
-      `- **描述**：${trimDesc(result.description)}\n` +
-      `- **Task ID**：\`${result.taskId}\`\n\n` +
-      `后续可用 \`mem:update-task\` 追加进度。`,
+    `✅ Task created and linked to this session.\n\n` +
+      `- **Title**: ${result.title}\n` +
+      `- **Status**: ${result.status ?? "running"}\n` +
+      `- **Description**: ${trimDesc(result.description)}\n` +
+      `- **Task ID**:\`${result.taskId}\`\n\n` +
+      `Use \`mem:update-task\` to add progress later.`,
     true,
     {
       task_id: result.taskId,

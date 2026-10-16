@@ -46,7 +46,7 @@ export async function executeMemCommand(
 
   // 未知命令
   if (!KNOWN_COMMANDS.has(cmd.command)) {
-    const text = `❌ 未知命令：\`mem:${cmd.command}\`。输入 \`mem:help\` 查看可用命令。`;
+    const text = `❌ Unknown command: \`mem:${cmd.command}\`. Enter \`mem:help\` to list available commands.`;
     return {
       success: false,
       messageText: text,
@@ -68,7 +68,7 @@ export async function executeMemCommand(
     case "session-reset":
       return executeSessionReset(ctx);
     default: {
-      const text = `❌ 未知命令：\`mem:${cmd.command}\``;
+      const text = `❌ Unknown command: \`mem:${cmd.command}\``;
       return {
         success: false,
         messageText: text,

@@ -33,9 +33,9 @@ import pexpect
 # ════════════════════════════════════════════════════════════════════════════
 
 # asset_confirm form: 关联资产 / 是否关联 / 团队资产
-FORM_RE = rb"\xe5\x85\xb3\xe8\x81\x94\xe8\xb5\x84\xe4\xba\xa7|\xe6\x98\xaf\xe5\x90\xa6\xe5\x85\xb3\xe8\x81\x94|\xe5\x9b\xa2\xe9\x98\x9f\xe8\xb5\x84\xe4\xba\xa7|asset_confirm|AskUserQuestion"
+FORM_RE = rb"Link team assets|Link assets|\xe5\x85\xb3\xe8\x81\x94\xe8\xb5\x84\xe4\xba\xa7|\xe6\x98\xaf\xe5\x90\xa6\xe5\x85\xb3\xe8\x81\x94|\xe5\x9b\xa2\xe9\x98\x9f\xe8\xb5\x84\xe4\xba\xa7|asset_confirm|AskUserQuestion"
 # reset 成功文案: 已重置 / 已恢复 / 已解除
-RESET_OK_RE = rb"\xe5\xb7\xb2\xe9\x87\x8d\xe7\xbd\xae|\xe5\xb7\xb2\xe6\x81\xa2\xe5\xa4\x8d|\xe5\xb7\xb2\xe8\xa7\xa3\xe9\x99\xa4"
+RESET_OK_RE = rb"Reset complete|Team asset selection|Team assets unlinked|\xe5\xb7\xb2\xe9\x87\x8d\xe7\xbd\xae|\xe5\xb7\xb2\xe6\x81\xa2\xe5\xa4\x8d|\xe5\xb7\xb2\xe8\xa7\xa3\xe9\x99\xa4"
 # team/agent/task selector form uses AskUserQuestion which shows specific patterns
 # We use FORM_RE for all form steps (they all show 关联/资产/团队 patterns)
 # CC prompt ready indicator: the ❯ prompt character when idle
@@ -254,7 +254,7 @@ def do_full_bind(child, timeout, team_index=0):
     # Select "是" (first item, already highlighted)
     time.sleep(1)
     send_enter(child)
-    steps.append("selected '是' on asset_confirm")
+    steps.append("selected 'Yes' on asset_confirm")
     time.sleep(3)
 
     # Walk through form steps (max 3: team, agent, task)
@@ -317,7 +317,7 @@ def test_p0_2(timeout, log_dir):
     4. 模型正常回复
     """
     print("\n" + "=" * 70)
-    print("  P0-2: reset后完成绑定→注入生效")
+    print("  P0-2: Complete binding after reset → injection active")
     print("=" * 70)
 
     log_path = os.path.join(log_dir, "p0-2.log")
@@ -345,7 +345,7 @@ def test_p0_2(timeout, log_dir):
         time.sleep(2)
 
         # Step 2: Select 否 → bypass
-        print("\n  [Step 2] Select '否' → bypass")
+        print("\n  [Step 2] Select 'No' → bypass")
         r = do_bypass(child, timeout)
         results["S2_bypass_ok"] = True
         print(f"    → PASS (idle after bypass)")
@@ -376,7 +376,7 @@ def test_p0_2(timeout, log_dir):
         time.sleep(2)
 
         # Step 5-7: Select 是 → walk through team/agent/task binding
-        print("\n  [Step 5-7] Select '是' → complete full binding")
+        print("\n  [Step 5-7] Select 'Yes' → complete full binding")
         success, steps = do_full_bind(child, timeout, team_index=0)
         results["S5_7_full_bind"] = success
         results["S5_7_steps"] = steps
@@ -404,7 +404,7 @@ def test_p0_3(timeout, log_dir):
     5. 走完 → 模型回复
     """
     print("\n" + "=" * 70)
-    print("  P0-3: 已绑定→reset→重新选(不同 team)")
+    print("  P0-3: Already linked → reset → select again (different team)")
     print("=" * 70)
 
     log_path = os.path.join(log_dir, "p0-3.log")
@@ -416,7 +416,7 @@ def test_p0_3(timeout, log_dir):
         handle_trust(child, timeout)
 
         # Step 1: Send hello → form → select 是 → complete binding
-        print("\n  [Step 1] Send 'hello' → form → select '是' → full bind (team 1)")
+        print("\n  [Step 1] Send 'hello' → form → select 'Yes' → full bind (team 1)")
         send_text(child, "hello")
         r = wait_for_form(child, timeout, "asset_confirm")
         if r is not True:
@@ -439,7 +439,7 @@ def test_p0_3(timeout, log_dir):
             return results
 
         # Step 3: Send mem:session-reset
-        print("\n  [Step 3] Send 'mem:session-reset' → expect '已解除/已恢复' text")
+        print("\n  [Step 3] Send 'mem:session-reset' → expect 'unlinked/restored' text")
         send_text(child, "mem:session-reset")
         r = wait_for_reset(child, timeout)
         results["S3_reset_ok"] = r is True
@@ -452,7 +452,7 @@ def test_p0_3(timeout, log_dir):
         wait_for_prompt(child, timeout=60)
 
         # Step 4: Send hi → form → select team 2 (Down once extra)
-        print("\n  [Step 4] Send 'hi' → form → select '是' → bind team 2")
+        print("\n  [Step 4] Send 'hi' → form → select 'Yes' → bind team 2")
         send_text(child, "hi")
         r = wait_for_form(child, timeout, "asset_confirm after reset")
         results["S4_form_after_reset"] = r is True
@@ -488,7 +488,7 @@ def test_p0_4(timeout, log_dir):
     4. 模型正常回复
     """
     print("\n" + "=" * 70)
-    print("  P0-4: 多次 reset 循环 (3 resets)")
+    print("  P0-4: Repeated reset cycles (3 resets)")
     print("=" * 70)
 
     log_path = os.path.join(log_dir, "p0-4.log")
@@ -586,7 +586,7 @@ def test_p0_4(timeout, log_dir):
 def main():
     ap = argparse.ArgumentParser(description="CC session-reset full rebind E2E")
     ap.add_argument("--case", choices=["p0-2", "p0-3", "p0-4", "all"], default="all")
-    ap.add_argument("--timeout", type=int, default=120, help="每步超时秒数")
+    ap.add_argument("--timeout", type=int, default=120, help="Timeout per step in seconds")
     ap.add_argument("--log-dir", default="/tmp/cc-session-reset-e2e")
     args = ap.parse_args()
 

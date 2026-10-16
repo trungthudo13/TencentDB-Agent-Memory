@@ -548,7 +548,7 @@ export class TdaiGateway {
       }
     } catch (err) {
       if (err instanceof LlmResolveError) {
-        throw new Error(`[LLM] provider 配置校验失败: ${err.message}`);
+        throw new Error(`[LLM] provider configuration validation failed: ${err.message}`);
       }
       throw err;
     }
@@ -3142,7 +3142,7 @@ export class TdaiGateway {
     const reported = resolveReportedCredit(rawCreditUsed, this.config.llm.provider);
     if (reported === 0 && rawCreditUsed > 0) {
       this.logger.debug?.(
-        `[quota] ${level} creditUsed=${rawCreditUsed} 由 context_proxy 上报，内核跳过 credit 部分`,
+        `[quota] ${level} creditUsed=${rawCreditUsed} reported by context_proxy; core skips the credit portion`,
       );
     }
     return reported;
@@ -3165,7 +3165,7 @@ export class TdaiGateway {
       effective = resolveStandaloneLlmForRuntime(llmCfg, instanceId);
     } catch (err) {
       this.logger.warn(
-        `[offload-llm] provider 解析失败, skipped: ${err instanceof Error ? err.message : String(err)}`,
+        `[offload-llm] provider resolution failed, skipped: ${err instanceof Error ? err.message : String(err)}`,
       );
       return null;
     }

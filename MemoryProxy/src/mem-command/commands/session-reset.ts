@@ -129,14 +129,14 @@ export async function executeSessionReset(ctx: MemCommandContext): Promise<MemCo
  */
 function buildSuccessMessage(oldStatus: string, oldBypassed: boolean): string {
   if (oldStatus === "uninitialized") {
-    return "✅ 已重置,继续对话时会弹出团队资产选择";
+    return "✅ Reset complete. Team asset selection will appear when you continue the conversation";
   }
   if (oldBypassed) {
-    return "✅ 已恢复团队资产选择入口,继续对话时会弹出重新选择";
+    return "✅ Team asset selection restored. Select again when you continue the conversation";
   }
   if (oldStatus === "initialized") {
-    return "✅ 已解除本次会话的团队资产绑定,继续对话时会弹出重新选择";
+    return "✅ Team assets unlinked from this session. Select again when you continue the conversation";
   }
   // pending_*
-  return "✅ 已重新开始团队资产选择,继续对话时会弹出选择";
+  return "✅ Team asset selection restarted. Selection will appear when you continue the conversation";
 }

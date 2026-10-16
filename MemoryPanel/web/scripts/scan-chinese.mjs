@@ -104,18 +104,18 @@ function scan() {
 const { results, totalHits } = scan();
 
 console.log('═══════════════════════════════════════════════════════════');
-console.log('  中文残留扫描（排除 src/i18n/，排除代码注释）');
+console.log('  Chinese text scan (excluding src/i18n/ and code comments)');
 console.log('═══════════════════════════════════════════════════════════\n');
 
 if (results.length === 0) {
-  console.log('✅ 未发现硬编码中文残留。\n');
+  console.log('✅ No hardcoded Chinese text found.\n');
   process.exit(0);
 }
 
-console.log(`发现 ${results.length} 个文件、共 ${totalHits} 行含中文残留：\n`);
+console.log(`Found Chinese text in ${totalHits} lines across ${results.length} files:\n`);
 
 for (const { file, hits } of results.sort((a, b) => b.hits.length - a.hits.length)) {
-  console.log(`📄 ${file} (${hits.length} 行)`);
+  console.log(`📄 ${file} (${hits.length} lines)`);
   for (const { line, content } of hits) {
     console.log(`   ${String(line).padStart(4)}: ${content.trim().slice(0, 120)}`);
   }
@@ -123,7 +123,7 @@ for (const { file, hits } of results.sort((a, b) => b.hits.length - a.hits.lengt
 }
 
 console.log(`───────────────────────────────────────────────────────────`);
-console.log(`合计：${results.length} 个文件、${totalHits} 行中文残留`);
+console.log(`Total: ${results.length} files, ${totalHits} lines with Chinese text`);
 console.log(`───────────────────────────────────────────────────────────\n`);
 
 if (process.argv.includes('--strict')) {

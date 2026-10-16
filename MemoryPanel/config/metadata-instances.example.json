@@ -3,13 +3,13 @@
   "instances": [
     {
       "id": "default",
-      "name": "本地默认实例",
+      "name": "Default local instance",
       "gateway_endpoint": "http://127.0.0.1:8420",
       "api_key": "REPLACE_WITH_KERNEL_BEARER_TOKEN"
     },
     {
       "id": "e2e-test",
-      "name": "E2E 自动化测试专用（可随时清库）",
+      "name": "E2E automated tests (data may be cleared at any time)",
       "gateway_endpoint": "http://127.0.0.1:8420",
       "api_key": "REPLACE_WITH_KERNEL_BEARER_TOKEN"
     }

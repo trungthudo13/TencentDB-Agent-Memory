@@ -13,8 +13,8 @@ const thisDir = path.dirname(fileURLToPath(import.meta.url));
 const entryScript = path.resolve(thisDir, "../scripts/read-local-memory/dist/read-local-memory.js");
 
 if (!fs.existsSync(entryScript)) {
-  console.error("❌  预编译产物不存在: " + entryScript);
-  console.error("   请先执行: npm run build:read-local-memory");
+  console.error("❌  Precompiled output not found: " + entryScript);
+  console.error("   Run this first: npm run build:read-local-memory");
   process.exit(1);
 }
 

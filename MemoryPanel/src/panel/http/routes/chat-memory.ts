@@ -833,7 +833,7 @@ export function registerChatMemoryRoutes(api: Hono, deps: PanelDeps): void {
         return respondControlError(
           c,
           400,
-          "不能把该 Agent 自己的记忆再分配给自己。",
+          "An agent cannot be assigned its own memory.",
         );
       }
 
@@ -854,7 +854,7 @@ export function registerChatMemoryRoutes(api: Hono, deps: PanelDeps): void {
         return respondControlError(
           c,
           409,
-          "这条记忆已经分配给该 Agent，无需重复分配。",
+          "This memory is already assigned to this agent.",
         );
       }
 
@@ -1915,7 +1915,7 @@ function emptyLayers(): MemoryBlockOut["layer_counts"] {
 }
 
 function buildSummary(): string {
-  return "0 条 L1 · 0 条 L2 · 0 条 L3";
+  return "0 L1 entries · 0 L2 entries · 0 L3 entries";
 }
 
 /**

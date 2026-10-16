@@ -81,7 +81,7 @@ export async function mergePage(
   // locked → 跳过，保护用户手工编辑。
   const oldParsed = parseFrontmatter(existingContent);
   if (oldParsed.frontmatter.locked === true) {
-    return { action: "skip", reason: "目标页 locked，跳过合并" };
+    return { action: "skip", reason: "Target page is locked; skipping merge" };
   }
 
   const candParsed = parseFrontmatter(candidateContent);

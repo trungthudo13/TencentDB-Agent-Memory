@@ -13,7 +13,7 @@ const VDB_URL = process.env.VDB_URL;
 const VDB_API_KEY = process.env.VDB_API_KEY;
 
 if (!VDB_URL || !VDB_API_KEY) {
-  console.error("需要环境变量 VDB_URL / VDB_API_KEY");
+  console.error("VDB_URL / VDB_API_KEY environment variables are required");
   process.exit(2);
 }
 
@@ -32,7 +32,7 @@ async function main() {
   // TcvdbClient 没有封装 list 接口，直接用底层 request 调（只读）
   const dbResp = await client.request<{ databases?: string[] }>("/database/list", {});
   const dbs = dbResp.databases ?? [];
-  console.log(`库总数: ${dbs.length}`);
+  console.log(`Total databases: ${dbs.length}`);
 
   const counts: Array<{ db: string; n: number }> = [];
   let total = 0;
@@ -49,14 +49,14 @@ async function main() {
     }
   }
 
-  console.log(`集合总数: ${total} / 1500（余量 ${1500 - total}）`);
+  console.log(`Total collections: ${total} / 1500 (remaining capacity ${1500 - total})`);
 
   const leftovers = counts.filter((c) => c.db.startsWith("clearverify-"));
-  console.log(`\n本验证脚本残留库 clearverify-*: ${leftovers.length} 个`);
-  for (const c of leftovers) console.log(`  ${c.db}  (${c.n} 集合)`);
+  console.log(`\nDatabases left by this verification script: clearverify-*: ${leftovers.length} items`);
+  for (const c of leftovers) console.log(`  ${c.db}  (${c.n} collections)`);
 
   counts.sort((a, b) => b.n - a.n);
-  console.log("\n集合数 top 15:");
+  console.log("\nTop 15 by collection count:");
   for (const c of counts.slice(0, 15)) {
     console.log(`  ${String(c.n).padStart(5)}  ${c.db}`);
   }

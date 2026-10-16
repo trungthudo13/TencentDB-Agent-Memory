@@ -125,45 +125,45 @@ const META_END = "-----META-END-----"
 const RELATIVE_TIME_RE = /^(\d+)(d|h|m|s)$/
 
 const HELP_TEXT = `
-📖  本地 Memory 数据查询脚本（SQLite 模式）
+📖  Local Memory query script (SQLite mode)
 
 Usage:
-  npx tsx read-local-memory.ts -d <数据目录> [选项]
+  npx tsx read-local-memory.ts -d <Data directory> [Options]
 
-数据目录下须包含 vectors.db（SQLite 数据库），L0/L1 数据从中读取。
+The data directory must contain vectors.db (SQLite), which stores L0/L1 data.
 
 Options:
-  -d, --data-dir <路径>    本地 memory-tdai 数据目录路径（必填，须含 vectors.db）
-  -L, --level <层级>       查询层级: L0 / L1 / L2 / L3（不指定则查所有）
-      --since <时间>       起始时间（ISO 字符串或相对表达式如 7d, 24h, 30m）
-      --until <时间>       截止时间（同 since 格式）
-  -l, --limit <数量>       每页返回数量（默认 50）
-      --offset <偏移>      分页偏移（默认 0）
-      --sort <方向>        排序: desc（新→旧）/ asc（旧→新），默认 desc
-  -f, --filter <表达式>    字段过滤，仅支持表的直接列（如 role=user, type=persona, priority>=80）
-                           支持驼峰或蛇形列名，多条件用逗号分隔
-      --format <格式>      输出: table / json / jsonl（默认 table）
-  -h, --help               显示帮助
+  -d, --data-dir <path>    Local memory-tdai data directory (required; must contain vectors.db)
+  -L, --level <level>       Query level: L0 / L1 / L2 / L3 (all if omitted)
+      --since <time>       Start time (ISO string or relative expression, e.g. 7d, 24h, 30m)
+      --until <time>       End time (same format as since)
+  -l, --limit <count>       Results per page (default: 50)
+      --offset <offset>      Page offset (default: 0)
+      --sort <direction>        Sort: desc (newest first) / asc (oldest first), default: desc
+  -f, --filter <expression>    Filter direct table columns only (e.g. role=user, type=persona, priority>=80)
+                           Supports camelCase or snake_case columns; comma-separate multiple conditions
+      --format <format>      Output: table / json / jsonl(default: table)
+  -h, --help               Show help
 
-L0 可过滤列: record_id, session_key, session_id, role, message_text, recorded_at, timestamp
-L1 可过滤列: record_id, content, type, priority, scene_name, session_key, session_id,
+L0 Filterable columns: record_id, session_key, session_id, role, message_text, recorded_at, timestamp
+L1 Filterable columns: record_id, content, type, priority, scene_name, session_key, session_id,
              timestamp_str, timestamp_start, timestamp_end, created_time, updated_time
 
 Examples:
-  # 查看所有层级概览
-  npx tsx read-local-memory.ts -d ./memory-tdai示例数据
+  # View all levels
+  npx tsx read-local-memory.ts -d ./memory-tdai-sample-data
 
-  # 查询 L0 近 7 天的对话
-  npx tsx read-local-memory.ts -d ./memory-tdai示例数据 -L L0 --since 7d
+  # Query L0 conversations from the last 7 days
+  npx tsx read-local-memory.ts -d ./memory-tdai-sample-data -L L0 --since 7d
 
-  # 查询 L1 记忆，只看 persona 类型
-  npx tsx read-local-memory.ts -d ./memory-tdai示例数据 -L L1 -f 'type=persona'
+  # Query L1 memories of type persona
+  npx tsx read-local-memory.ts -d ./memory-tdai-sample-data -L L1 -f 'type=persona'
 
-  # L0 分页：第 2 页（每页 20 条）
-  npx tsx read-local-memory.ts -d ./memory-tdai示例数据 -L L0 -l 20 --offset 20
+  # L0 pagination: page 2 (20 records per page)
+  npx tsx read-local-memory.ts -d ./memory-tdai-sample-data -L L0 -l 20 --offset 20
 
-  # 以 JSON 格式输出
-  npx tsx read-local-memory.ts -d ./memory-tdai示例数据 -L L0 --since 7d --format json
+  # Output as JSON
+  npx tsx read-local-memory.ts -d ./memory-tdai-sample-data -L L0 --since 7d --format json
 `.trim()
 
 // ─────────────────────────────────────────────
@@ -196,32 +196,32 @@ function parseCli(): CliOptions {
 
   const dataDir = values["data-dir"]
   if (!dataDir) {
-    console.error("❌  缺少必填参数: --data-dir (-d)")
-    console.error('   使用 --help 查看用法')
+    console.error("❌  Missing required arguments: --data-dir (-d)")
+    console.error('   Use --help for usage')
     process.exit(1)
   }
 
   const resolvedDir = path.resolve(dataDir)
   if (!fs.existsSync(resolvedDir)) {
-    console.error(`❌  数据目录不存在: ${resolvedDir}`)
+    console.error(`❌  Data directorydoes not exist: ${resolvedDir}`)
     process.exit(1)
   }
 
   const level = values.level?.toUpperCase() as Level | undefined
   if (level && !["L0", "L1", "L2", "L3"].includes(level)) {
-    console.error(`❌  无效的层级: ${values.level}  （可选: L0, L1, L2, L3）`)
+    console.error(`❌  Invalid level: ${values.level}   (options: L0, L1, L2, L3)`)
     process.exit(1)
   }
 
   const sort = (values.sort?.toLowerCase() ?? "desc") as SortDirection
   if (!["asc", "desc"].includes(sort)) {
-    console.error(`❌  无效的排序方向: ${values.sort}  （可选: asc, desc）`)
+    console.error(`❌  Invalid sort direction: ${values.sort}   (options: asc, desc)`)
     process.exit(1)
   }
 
   const format = (values.format?.toLowerCase() ?? "table") as OutputFormat
   if (!["table", "json", "jsonl"].includes(format)) {
-    console.error(`❌  无效的输出格式: ${values.format}  （可选: table, json, jsonl）`)
+    console.error(`❌  Invalid output format: ${values.format}   (options: table, json, jsonl)`)
     process.exit(1)
   }
 
@@ -229,11 +229,11 @@ function parseCli(): CliOptions {
   const offset = values.offset ? parseInt(values.offset, 10) : 0
 
   if (isNaN(limit) || limit < 1) {
-    console.error(`❌  无效的 limit: ${values.limit}`)
+    console.error(`❌  Invalid limit: ${values.limit}`)
     process.exit(1)
   }
   if (isNaN(offset) || offset < 0) {
-    console.error(`❌  无效的 offset: ${values.offset}`)
+    console.error(`❌  Invalid offset: ${values.offset}`)
     process.exit(1)
   }
 
@@ -273,7 +273,7 @@ function parseTimeExpr(expr: string): Date {
 
   const date = new Date(expr)
   if (isNaN(date.getTime())) {
-    console.error(`❌  无法解析时间: ${expr}`)
+    console.error(`❌  Cannot parse time: ${expr}`)
     process.exit(1)
   }
   return date
@@ -318,7 +318,7 @@ function parseFilterExpr(expr: string): FilterCondition[] {
         }
       }
     }
-    console.error(`❌  无法解析过滤条件: ${trimmed}`)
+    console.error(`❌  Cannot parse filter: ${trimmed}`)
     process.exit(1)
   })
 }
@@ -338,8 +338,8 @@ function validateFilterColumns(conditions: FilterCondition[], allowedColumns: Se
   for (const c of conditions) {
     const col = resolveColumnName(c.field, allowedColumns)
     if (!allowedColumns.has(col)) {
-      console.error(`❌  ${level} 不支持的过滤字段: ${c.field}`)
-      console.error(`   可用字段: ${[...allowedColumns].join(", ")}`)
+      console.error(`❌  ${level} Unsupported filter field: ${c.field}`)
+      console.error(`   Available fields: ${[...allowedColumns].join(", ")}`)
       process.exit(1)
     }
   }
@@ -555,16 +555,16 @@ function querySqliteLevel(db: DatabaseSync, opts: CliOptions, level: "L0" | "L1"
   const rangeEnd = Math.min(opts.offset + opts.limit, total)
 
   console.log()
-  console.log(`📊  查询结果：${level} ${levelLabel}（SQLite）`)
-  console.log(`   总条数: ${total}`)
-  console.log(`   当前页: ${rangeStart}-${rangeEnd} / ${total}（按 ${timeField} ${opts.sort === "desc" ? "降序" : "升序"}）`)
+  console.log(`📊  Query results:${level} ${levelLabel} (SQLite)`)
+  console.log(`   Total records: ${total}`)
+  console.log(`   Current page: ${rangeStart}-${rangeEnd} / ${total} (by ${timeField} ${opts.sort === "desc" ? "Descending" : "Ascending"})`)
   if (filterParts.length > 0) {
-    console.log(`   过滤条件: ${filterParts.join(", ")}`)
+    console.log(`   Filter: ${filterParts.join(", ")}`)
   }
   console.log()
 
   if (paged.length === 0) {
-    console.log("   （无匹配数据）")
+    console.log("   (No matching data)")
     console.log()
     return
   }
@@ -751,8 +751,8 @@ function queryL2(opts: CliOptions) {
       return
     }
     console.log()
-    console.log(`📊  查询结果：L2 scene_blocks`)
-    console.log(`   （尚未生成场景数据）`)
+    console.log(`📊  Query results:L2 scene_blocks`)
+    console.log(`   (No scene data generated yet)`)
     console.log()
     return
   }
@@ -764,7 +764,7 @@ function queryL2(opts: CliOptions) {
   if (opts.file) {
     const target = entries.find((e) => e.fileName === opts.file)
     if (!target) {
-      console.error(`❌  文件不存在: ${opts.file}`)
+      console.error(`❌  File does not exist: ${opts.file}`)
       process.exit(1)
     }
     if (opts.format === "json") {
@@ -804,12 +804,12 @@ function queryL2(opts: CliOptions) {
 
   // ── table 格式 ──
   console.log()
-  console.log(`📊  查询结果：L2 scene_blocks`)
-  console.log(`   总文件数: ${entries.length}`)
+  console.log(`📊  Query results:L2 scene_blocks`)
+  console.log(`   Total files: ${entries.length}`)
   console.log()
 
   if (entries.length === 0) {
-    console.log("   （无场景画像文件）")
+    console.log("   (No scene profile files)")
     console.log()
     return
   }
@@ -828,7 +828,7 @@ function queryL2(opts: CliOptions) {
     const maxLines = 30
     if (lines.length > maxLines) {
       console.log(lines.slice(0, maxLines).join("\n"))
-      console.log(`   ... (省略 ${lines.length - maxLines} 行，共 ${lines.length} 行)`)
+      console.log(`   ... (omitted ${lines.length - maxLines} lines, total ${lines.length} lines)`)
     } else {
       console.log(body)
     }
@@ -854,8 +854,8 @@ function queryL3(opts: CliOptions) {
       return
     }
     console.log()
-    console.log(`📊  查询结果：L3 persona`)
-    console.log(`   （画像文件尚未生成）`)
+    console.log(`📊  Query results:L3 persona`)
+    console.log(`   (Profile file not generated yet)`)
     console.log()
     return
   }
@@ -873,7 +873,7 @@ function queryL3(opts: CliOptions) {
   }
 
   console.log()
-  console.log(`📊  查询结果：L3 persona`)
+  console.log(`📊  Query results:L3 persona`)
   console.log(`${"─".repeat(60)}`)
   console.log(content)
   console.log()
@@ -885,9 +885,9 @@ function queryL3(opts: CliOptions) {
 
 function showOverview(db: DatabaseSync, opts: CliOptions) {
   console.log()
-  console.log(`🗂️  Memory 数据概览`)
-  console.log(`   数据目录: ${opts.dataDir}`)
-  console.log(`   数据库: ${SQLITE_DB_NAME}`)
+  console.log(`🗂️  Memory data overview`)
+  console.log(`   Data directory: ${opts.dataDir}`)
+  console.log(`   Database: ${SQLITE_DB_NAME}`)
   console.log(`${"═".repeat(60)}`)
 
   // ── L0 ──
@@ -898,13 +898,13 @@ function showOverview(db: DatabaseSync, opts: CliOptions) {
 
     console.log()
     console.log(`📂  L0 · conversations (l0_conversations)`)
-    console.log(`   总条数: ${l0Count}`)
+    console.log(`   Total records: ${l0Count}`)
     if (roleSummary) {
-      console.log(`   角色分布: ${roleSummary}`)
+      console.log(`   Role distribution: ${roleSummary}`)
     }
   } catch {
     console.log()
-    console.log(`📂  L0 · conversations  （表不存在或查询失败）`)
+    console.log(`📂  L0 · conversations  (Table does not exist or query failed)`)
   }
 
   // ── L1 ──
@@ -915,13 +915,13 @@ function showOverview(db: DatabaseSync, opts: CliOptions) {
 
     console.log()
     console.log(`📂  L1 · records (l1_records)`)
-    console.log(`   总条数: ${l1Count}`)
+    console.log(`   Total records: ${l1Count}`)
     if (typeSummary) {
-      console.log(`   类型分布: ${typeSummary}`)
+      console.log(`   Type distribution: ${typeSummary}`)
     }
   } catch {
     console.log()
-    console.log(`📂  L1 · records  （表不存在或查询失败）`)
+    console.log(`📂  L1 · records  (Table does not exist or query failed)`)
   }
 
   // ── L2 ──
@@ -933,13 +933,13 @@ function showOverview(db: DatabaseSync, opts: CliOptions) {
 
     console.log()
     console.log(`📂  L2 · scene_blocks`)
-    console.log(`   文件数: ${files.length}   总热度: ${totalHeat}`)
+    console.log(`   File count: ${files.length}   Total heat: ${totalHeat}`)
     for (const entry of entries) {
       console.log(`   · ${entry.fileName}  (heat: ${entry.meta.heat})  ${truncate(entry.meta.summary, 40)}`)
     }
   } else {
     console.log()
-    console.log(`📂  L2 · scene_blocks  （目录不存在）`)
+    console.log(`📂  L2 · scene_blocks  (Directory does not exist)`)
   }
 
   // ── L3 ──
@@ -951,15 +951,15 @@ function showOverview(db: DatabaseSync, opts: CliOptions) {
 
     console.log()
     console.log(`📂  L3 · persona`)
-    console.log(`   大小: ${formatBytes(bytes)}   行数: ${lines}`)
+    console.log(`   Size: ${formatBytes(bytes)}   Line count: ${lines}`)
   } else {
     console.log()
-    console.log(`📂  L3 · persona  （文件不存在）`)
+    console.log(`📂  L3 · persona  (File does not exist)`)
   }
 
   console.log()
   console.log(`${"═".repeat(60)}`)
-  console.log(`💡  使用 -L <层级> 查看详细数据，如: -L L0 --since 7d`)
+  console.log(`💡  Use -L <level> for details, e.g. -L L0 --since 7d`)
   console.log()
 }
 
@@ -1002,8 +1002,8 @@ function emptyL0L1Result(opts: CliOptions, level: "L0" | "L1") {
   }
   const label = level === "L0" ? "conversations" : "records"
   console.log()
-  console.log(`📊  查询结果：${level} ${label}（SQLite）`)
-  console.log(`   （数据库尚未生成，暂无数据）`)
+  console.log(`📊  Query results:${level} ${label} (SQLite)`)
+  console.log(`   (Database not generated yet; no data)`)
   console.log()
 }
 
@@ -1030,8 +1030,8 @@ function main() {
       return
     }
     // 概览模式：数据库不存在，报错退出
-    console.error(`❌  SQLite 数据库不存在: ${path.join(opts.dataDir, SQLITE_DB_NAME)}`)
-    console.error(`   请确认数据目录下包含 ${SQLITE_DB_NAME}`)
+    console.error(`❌  SQLite Databasedoes not exist: ${path.join(opts.dataDir, SQLITE_DB_NAME)}`)
+    console.error(`   Ensure the data directory contains ${SQLITE_DB_NAME}`)
     process.exit(1)
   }
 

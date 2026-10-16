@@ -10,7 +10,7 @@
  * 级联、extractor 匹配全部走既有 tasks.length 路径，避免"分页真相分散"型 bug
  * （见 docs 里 defaultTaskId 相关记录 & 2026-07-29 issue）。
  */
-export const DEFAULT_TASK_LABEL = "暂时跳过";
+export const DEFAULT_TASK_LABEL = "Skip for now";
 
 /**
  * Session-init 状态机：

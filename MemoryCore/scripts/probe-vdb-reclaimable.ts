@@ -22,7 +22,7 @@ const VDB_URL = process.env.VDB_URL;
 const VDB_API_KEY = process.env.VDB_API_KEY;
 
 if (!VDB_URL || !VDB_API_KEY) {
-  console.error("需要环境变量 VDB_URL / VDB_API_KEY");
+  console.error("VDB_URL / VDB_API_KEY environment variables are required");
   process.exit(2);
 }
 
@@ -89,18 +89,18 @@ async function main() {
     else if (reason === "unknown-keep") keepUnknown.push(db);
   }
 
-  console.log(`库总数: ${dbs.length}`);
-  console.log(`集合总数: ${totalCols} / 1500（余量 ${1500 - totalCols}）\n`);
+  console.log(`Total databases: ${dbs.length}`);
+  console.log(`Total collections: ${totalCols} / 1500 (remaining capacity ${1500 - totalCols})\n`);
 
-  console.log("按分类统计:");
+  console.log("Counts by category:");
   for (const [reason, s] of [...byReason.entries()].sort((a, b) => b[1].cols - a[1].cols)) {
-    const tag = DISPOSABLE_PATTERNS.some((p) => p.name === reason) ? "可清理" : "保留";
-    console.log(`  [${tag}] ${reason.padEnd(24)} ${String(s.dbs).padStart(4)} 库${String(s.cols).padStart(5)} 集合`);
+    const tag = DISPOSABLE_PATTERNS.some((p) => p.name === reason) ? "Reclaimable" : "Keep";
+    console.log(`  [${tag}] ${reason.padEnd(24)} ${String(s.dbs).padStart(4)} databases${String(s.cols).padStart(5)} collections`);
   }
 
-  console.log(`\n可回收集合数: ${reclaimable}（清理后余量约 ${1500 - totalCols + reclaimable}）`);
-  console.log(`未识别、保守保留的库: ${keepUnknown.length} 个`);
-  if (keepUnknown.length) console.log(`  示例: ${keepUnknown.slice(0, 10).join(", ")}`);
+  console.log(`\nReclaimable collections: ${reclaimable} (remaining capacity after cleanup: approximately ${1500 - totalCols + reclaimable})`);
+  console.log(`Unrecognized databases preserved conservatively: ${keepUnknown.length} items`);
+  if (keepUnknown.length) console.log(`  Example: ${keepUnknown.slice(0, 10).join(", ")}`);
 }
 
 main().catch((err) => {

@@ -87,7 +87,7 @@ export async function generateOverview(projectPath: string, llm: LlmClient): Pro
   const wikiDir = join(projectPath, "wiki");
   const briefs = collectBriefs(wikiDir);
   if (briefs.length < 2) {
-    log.debug("页面太少，跳过 overview 生成", { pages: briefs.length });
+    log.debug("Too few pages; skipping overview generation", { pages: briefs.length });
     return false;
   }
 

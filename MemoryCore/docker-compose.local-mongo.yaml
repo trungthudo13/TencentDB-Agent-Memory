@@ -63,7 +63,7 @@ services:
       # ── 本地免鉴权（Layer1 关闭；api_key 仅作 Layer3 管理员 user_key）──
       - TDAI_GATEWAY_API_KEY=
       # ── LLM（从宿主环境注入，见文件头用法）──
-      - TDAI_LLM_API_KEY=${TDAI_LLM_API_KEY:?请先 set -a && source ../.env.knowledge-local && set +a}
+      - TDAI_LLM_API_KEY=${TDAI_LLM_API_KEY:?First run set -a && source ../.env.knowledge-local && set +a}
       - TDAI_LLM_BASE_URL=${TDAI_LLM_BASE_URL:-https://tokenhub.tencentmaas.com/v1}
       - TDAI_LLM_MODEL=${TDAI_LLM_MODEL:-deepseek-v4-flash}
     depends_on:

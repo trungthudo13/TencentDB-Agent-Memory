@@ -955,8 +955,8 @@ export class TdaiCore {
           });
         } else {
           this.logger.warn(
-            `${TAG} Skill singleton extractor not constructed — service mode 会走 per-instance factory；` +
-              `standalone/openclaw 模式下 /skill/extract 会因缺 extractor 无法抽取, 请检查 cfg.llm。`,
+            `${TAG} Skill singleton extractor not constructed — service mode uses the per-instance factory; ` +
+              `/skill/extract cannot extract in standalone/openclaw mode without an extractor; check cfg.llm.`,
           );
         }
       }

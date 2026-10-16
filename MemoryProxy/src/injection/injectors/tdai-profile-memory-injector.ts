@@ -91,7 +91,7 @@ export class TdaiProfileMemoryInjector implements InjectionHook {
 
     const lines: string[] = [
       "<tdai_profile_memory>",
-      "以下是 TDAI 为当前 agent 维护的长期工作记忆（自有 + 借入分段；L2 仅给索引，按需用工具读全文）：",
+      "The following are long-term working memories maintained by TDAI for this agent (self + imported sections; L2 includes only the index; read full content with tools as needed):",
     ];
 
     let l2TotalCount = 0;
@@ -162,51 +162,51 @@ function createPrewarmAgentContext(input: PrewarmInput): AgentContext {
 
 /** 记忆使用指南：L0/L1 按需用工具检索（不再自动召回），L3 直注、L2 索引直注。 */
 export const MEMORY_TOOLS_GUIDE = `<memory-tools-guide>
-## ⚠️ 重要：这不是文档，这是你的可用能力
+## ⚠️ Important: These are available capabilities, not documentation
 
-以下 \`<tdai_memory_tools>\` 中列出的 tdai_memory_search / tdai_conversation_search
-等，是**你可以主动调用的能力**（不是仅供参考的文档）。它们通过 **Bash + curl**
-使用（见上方 \`<tdai_memory_tools>\` 段里的完整调用说明与 URL）。
+The tdai_memory_search / tdai_conversation_search tools listed in \`<tdai_memory_tools>\`
+are **capabilities you can actively invoke** (not reference-only documentation). Use **Bash + curl**
+as described in the full instructions and URLs in the \`<tdai_memory_tools>\` block above.
 
-**禁止**回答类似"我没有这个工具 / 需要 MCP / 需要斜杠命令"。
-**正确做法**：判定需要查记忆时，直接在 Bash 里执行 curl，proxy 会自动注入身份与鉴权。
+**Do not** answer with statements such as "I do not have this tool / MCP is required / a slash command is required".
+**Correct approach**: When memory lookup is needed, execute curl in Bash; the proxy injects identity and authentication automatically.
 
-## 记忆使用规则（遇到以下场景必须先查再答）
+## Memory usage rules (look up before answering in the following cases)
 
-L3（persona 长期画像）与 L2 场景索引已直接注入 system。L0/L1 需要用工具主动检索。
+L3 (long-term persona) and the L2 scene index are already injected into the system. Retrieve L0/L1 actively with tools.
 
-### 必须先查记忆再回答的场景（命中任一条即触发工具调用）
+### Cases requiring memory lookup before answering (any match triggers a tool call)
 
-1. **用户提及历史/过去/之前**：如 "我之前说过 / 我告诉过你 / 上次 / 你还记不记得 / 我们聊过 / 之前那个"
-   → 用 \`tdai_conversation_search\`（L0 原文找具体消息）
-2. **用户涉及自己身份/偏好/习惯**：如 "我叫什么 / 我的名字 / 我喜欢 / 我的团队 / 我常用 / 我不喜欢 / 我不允许"
-   → 用 \`tdai_memory_search\`（L1 原子记忆查偏好/规则）
-3. **用户要求你回忆/找**：如 "回忆一下 / 想起 / 找出 / 有没有关于 X 的记录 / 查我们之前"
-   → 直接触发工具，不要凭空回答
-4. **答案强依赖历史事实**：如 "那个 bug 我们怎么修的 / 上次方案是啥 / 我们的约定是什么"
-   → 关键词化后 \`tdai_memory_search\`
+1. **The user mentions history or the past**: e.g. "I said before / I told you / last time / do you remember / we discussed / that earlier one"
+   → Use \`tdai_conversation_search\` (find specific original messages in L0).
+2. **The user refers to their identity, preferences, or habits**: e.g. "what is my name / my name / I like / my team / I often use / I dislike / I do not allow"
+   → Use \`tdai_memory_search\` (look up preferences/rules in L1 atomic memories).
+3. **The user asks you to recall or find something**: e.g. "recall / remember / find / any records about X / check our previous conversation"
+   → Invoke a tool directly; do not invent an answer.
+4. **The answer depends heavily on historical facts**: e.g. "how did we fix that bug / what was the last plan / what did we agree on"
+   → Extract keywords and call \`tdai_memory_search\`.
 
-**典型流程**（用户："我叫什么"）：
+**Typical workflow** (user: "What is my name?"):
 \`\`\`bash
-# Step 1: 先查
+# Step 1: Look up first
 curl -sfk -X POST <bridge>/atomic/search \\
   -H 'Content-Type: application/json' -H 'x-conversation-id: <sid>' \\
-  -d '{"query": "用户姓名 name 身份", "limit": 5}'
-# Step 2: 从 items[].content 里提取答案后回复
-# 若为空: 明确告诉用户 "我在记忆里没找到，你叫什么？" —— 不要装作知道
+  -d '{"query": "user name identity", "limit": 5}'
+# Step 2: Extract the answer from items[].content, then reply
+# If empty: Say clearly "I could not find it in memory. What is your name?" Do not pretend to know.
 \`\`\`
 
-### 不需要查的场景
+### Cases that do not require lookup
 
-- 用户问 "你是谁" / "帮我改代码" / "写个脚本" / 通用编程问题
-- 当前会话上下文（同轮消息）里已能回答
-- 已经在 \`<l3_core_memory>\` 段落里直接看到答案
+- The user asks "who are you / help me edit code / write a script" or general programming questions.
+- The answer is already available in the current conversation context (same-turn messages).
+- The answer is explicitly present in \`<l3_core_memory>\`.
 
-### ⚠️ 调用约束
+### ⚠️ Usage constraints
 
-- 每轮 \`tdai_memory_search\` + \`tdai_conversation_search\` **合计 ≤ 3 次**（\`tdai_read_scene\` / \`tdai_scenario_ls\` / \`tdai_atomic_query\` 不计入）
-- 检索无果时**明确说明**"我在记忆里没找到 X"，不要幻想
-- 同一 L2 path 不要重复读
+- Per turn, \`tdai_memory_search\` + \`tdai_conversation_search\` must total **at most 3 calls** (\`tdai_read_scene\` / \`tdai_scenario_ls\` / \`tdai_atomic_query\` do not count).
+- If no results are found, **state clearly** "I could not find X in memory"; do not fabricate.
+- Do not read the same L2 path repeatedly.
 </memory-tools-guide>`;
 
 interface AgentProfileBundle {

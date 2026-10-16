@@ -445,7 +445,7 @@ function buildFallbackTaskTitle(): string {
   const dd = String(now.getDate()).padStart(2, "0");
   const HH = String(now.getHours()).padStart(2, "0");
   const mm = String(now.getMinutes()).padStart(2, "0");
-  return `未命名任务_${yy}${MM}${dd}_${HH}${mm}`;
+  return `Untitled_task_${yy}${MM}${dd}_${HH}${mm}`;
 }
 
 // ── 核心：update-task ─────────────────────────────────────────────────────
@@ -465,7 +465,7 @@ export async function updateTaskFromSession(
     return {
       success: false,
       error:
-        "no task bound to this session (session is in \"暂时跳过\" mode or task_id missing); " +
+        "no task bound to this session (session is in \"Skip for now\" mode or task_id missing); " +
         "use mem:create-task to create and bind a new task first",
     };
   }

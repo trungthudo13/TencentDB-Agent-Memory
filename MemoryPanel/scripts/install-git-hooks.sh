@@ -18,6 +18,6 @@ exec bash "$repo_root/scripts/secret-scan.sh"
 EOF
 
 chmod +x "$hook_path"
-echo "✓ pre-commit hook 已安装到 $hook_path"
-echo "  每次 git commit 前会跑 secret-scan.sh；命中敏感信息即拒绝提交。"
-echo "  临时跳过：git commit --no-verify"
+echo "✓ pre-commit hook installed at $hook_path"
+echo "  secret-scan.sh runs before each git commit and rejects commits containing sensitive information."
+echo "  Skip once: git commit --no-verify"

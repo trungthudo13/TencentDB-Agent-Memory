@@ -267,7 +267,7 @@ case "${1:-daemon}" in
   daemon-status)  cmd_daemon_status  ;;
   _daemon_entry)  _daemon_loop       ;;  # 内部入口，不对外暴露
   *)
-    echo "用法: $0 [start|stop|restart|status|log|daemon|daemon-stop|daemon-status]"
+    echo "Usage: $0 [start|stop|restart|status|log|daemon|daemon-stop|daemon-status]"
     exit 1
     ;;
 esac

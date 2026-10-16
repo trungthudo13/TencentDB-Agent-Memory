@@ -383,7 +383,7 @@ function buildPipelineBundle(config: ProxyConfig): PipelineBundle {
       registry.register(new AssetReflectionInjector({ activeAssetTags }));
       console.log(`[injection] asset-reflection registered, tags=[${activeAssetTags.join(",")}]`);
     } else {
-      console.log(`[injection] asset-reflection markerOptIn=true 但本节点无资产 injector，跳过 register`);
+      console.log(`[injection] asset-reflection markerOptIn=true but no asset injector is available on this node; skipping registration`);
     }
   }
 

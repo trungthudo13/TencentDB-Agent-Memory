@@ -61,7 +61,7 @@ export function dumpGenerateFailure(args: {
     writeFileSync(file, header + output, "utf-8");
     return file;
   } catch (err) {
-    log.warn("generate 失败原文落盘失败", { source: sourceName, error: String(err) });
+    log.warn("Failed to save raw output from failed generation", { source: sourceName, error: String(err) });
     return null;
   }
 }
@@ -117,10 +117,10 @@ export async function extractSource(
   existingPages: ExistingPageInfo[],
   options: IngestOptions = {},
 ): Promise<Map<string, string>> {
-  if (!existsSync(sourcePath)) throw new Error(`源文件不存在: ${sourcePath}`);
+  if (!existsSync(sourcePath)) throw new Error(`Source file does not exist: ${sourcePath}`);
   const sourceText = readFileSync(sourcePath, "utf-8");
   const sourceName = basename(sourcePath);
-  if (!sourceText.trim()) throw new Error(`源文件为空: ${sourceName}`);
+  if (!sourceText.trim()) throw new Error(`Source file is empty: ${sourceName}`);
 
   const llm = options.llm ?? createLlmClient(llmConfig);
   const template = loadTemplate(projectPath);
@@ -132,7 +132,7 @@ export async function extractSource(
       ? chunkText(sourceText, { targetChars: SOURCE_CHAR_BUDGET })
       : [sourceText];
 
-  log.info("extractSource 开始", {
+  log.info("extractSource started", {
     source: sourceName,
     sourceChars: sourceText.length,
     mode,
@@ -150,18 +150,18 @@ export async function extractSource(
 
     let out: string;
     if (mode === "two-stage") {
-      log.debug("阶段A 分析开始", { chunk: tag });
+      log.debug("Stage A analysis started", { chunk: tag });
       const analysis = await llm.chat({
         system: buildAnalysisSystemPrompt(template),
         prompt: buildAnalysisPrompt({ sourceName: chunkLabel, sourceText: chunks[i], existingPages }),
         label: `analysis:${tag}`,
       });
-      log.debug("阶段A 分析完成", { chunk: tag, analysisChars: analysis.length, empty: !analysis.trim() });
-      log.debug("阶段A 分析内容预览", { chunk: tag, preview: analysis.slice(0, 200) });
+      log.debug("Stage A analysis completed", { chunk: tag, analysisChars: analysis.length, empty: !analysis.trim() });
+      log.debug("Stage A analysis preview", { chunk: tag, preview: analysis.slice(0, 200) });
       const genPrompt = analysis.trim()
         ? buildGenerateFromAnalysisPrompt({ sourceName: chunkLabel, sourceText: chunks[i], analysis, existingPages })
         : buildGeneratePrompt({ sourceName: chunkLabel, sourceText: chunks[i], existingPages });
-      if (!analysis.trim()) log.warn("分析为空，降级单阶段生成", { chunk: tag });
+      if (!analysis.trim()) log.warn("Analysis is empty; falling back to single-stage generation", { chunk: tag });
       out = await llm.chat({ system: systemPrompt, prompt: genPrompt, label: `generate:${tag}` });
     } else {
       const prompt = buildGeneratePrompt({ sourceName: chunkLabel, sourceText: chunks[i], existingPages });
@@ -170,7 +170,7 @@ export async function extractSource(
 
     const { files, warnings: w } = parseFileBlocks(out);
     warnings.push(...w);
-    log.debug("FILE 块解析", { chunk: tag, outChars: out.length, files: files.length, warnings: w.length });
+    log.debug("Parsing FILE blocks", { chunk: tag, outChars: out.length, files: files.length, warnings: w.length });
     if (files.length === 0 && out.trim()) {
       const dumpPath = dumpGenerateFailure({
         projectPath,
@@ -179,12 +179,12 @@ export async function extractSource(
         output: out,
         reason: w.length ? `parse_empty warnings=${w.length}` : "parse_empty files=0",
       });
-      if (dumpPath) log.warn("generate 无合法 FILE，已落盘", { source: sourceName, dumpPath });
+      if (dumpPath) log.warn("Generation produced no valid FILE blocks; raw output saved", { source: sourceName, dumpPath });
     }
     for (const f of files) {
       const canonicalPath = canonicalizePagePath(f.path, f.content);
       if (STRUCTURAL_FILES.has(canonicalPath)) {
-        warnings.push(`跳过结构性文件: ${canonicalPath}`);
+        warnings.push(`Skipping structural file: ${canonicalPath}`);
         continue;
       }
       candidates.set(canonicalPath, ensureSources(f.content, sourceName));
@@ -192,13 +192,13 @@ export async function extractSource(
   }
 
   if (candidates.size === 0) {
-    log.error("未生成任何合法 wiki 页", { source: sourceName, warnings });
+    log.error("No valid wiki pages generated", { source: sourceName, warnings });
     throw new Error(
-      `未生成任何合法 wiki 页（no files generated）: ${sourceName}${warnings.length ? ` [${warnings.join("; ")}]` : ""}`,
+      `No valid wiki pages generated (no files generated): ${sourceName}${warnings.length ? ` [${warnings.join("; ")}]` : ""}`,
     );
   }
 
-  log.info("extractSource 完成", { source: sourceName, candidates: candidates.size, warnings: warnings.length });
+  log.info("extractSource completed", { source: sourceName, candidates: candidates.size, warnings: warnings.length });
   return candidates;
 }
 
@@ -241,7 +241,7 @@ export async function commitCandidates(
           error: `path escapes project root: ${relPath}`,
         });
       }
-      log.error("阻断越界落盘路径", { relPath, projectPath });
+      log.error("Blocked out-of-bounds output path", { relPath, projectPath });
       continue;
     }
     let existing = existsSync(fullPath) ? readFileSync(fullPath, "utf-8") : null;
@@ -260,17 +260,17 @@ export async function commitCandidates(
           ? await globalLlmLimit(() => mergePage(existing, entry.content, llm, mergeOpts))
           : await mergePage(existing, entry.content, llm, mergeOpts);
         if (decision.action === "skip") {
-          log.debug("跳过页（locked）", { relPath, source: entry.source });
+          log.debug("Skipping page (locked)", { relPath, source: entry.source });
           continue;
         }
         mkdirSync(dirname(fullPath), { recursive: true });
         writeFileSync(fullPath, decision.content, "utf-8");
         existing = decision.content;
         if (!written.includes(relPath)) written.push(relPath);
-        log.debug("写盘", { relPath, source: entry.source, bytes: decision.content.length });
+        log.debug("Writing file", { relPath, source: entry.source, bytes: decision.content.length });
       } catch (err) {
         mergeErrors.push({ relPath, source: entry.source, error: String(err) });
-        log.error("页面合并失败", { relPath, source: entry.source, error: String(err) });
+        log.error("Page merge failed", { relPath, source: entry.source, error: String(err) });
       }
     }
   }
@@ -278,7 +278,7 @@ export async function commitCandidates(
   try {
     rebuildIndexFile(projectPath);
   } catch (err) {
-    log.warn("index.md 重建失败（不影响主流程）", { error: String(err) });
+    log.warn("Failed to rebuild index.md (main workflow is unaffected)", { error: String(err) });
   }
 
   try {
@@ -290,7 +290,7 @@ export async function commitCandidates(
       });
     }
   } catch (err) {
-    log.warn("log.md 写入失败（不影响主流程）", { error: String(err) });
+    log.warn("Failed to write log.md (main workflow is unaffected)", { error: String(err) });
   }
 
   return { written, mergeErrors };
@@ -318,15 +318,15 @@ export async function ingestSource(
     { fullRewriteMaxChars: options.mergeFullRewriteMaxChars, skipLog: true },
   );
   if (written.length === 0) {
-    log.warn("无页写入（全部 locked 跳过）", { source: sourceName });
+    log.warn("No pages written (all skipped as locked)", { source: sourceName });
     return [];
   }
   try {
     appendIngestLog(projectPath, sourceName, written.length);
   } catch (err) {
-    log.warn("log.md 追加失败", { error: err instanceof Error ? err.message : String(err) });
+    log.warn("Failed to append to log.md", { error: err instanceof Error ? err.message : String(err) });
   }
-  log.info("ingestSource 完成", { source: sourceName, written: written.length });
+  log.info("ingestSource completed", { source: sourceName, written: written.length });
   return written;
 }
 

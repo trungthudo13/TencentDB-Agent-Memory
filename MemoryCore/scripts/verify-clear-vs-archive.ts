@@ -183,46 +183,46 @@ async function main() {
     const adminKey = admin.user_key ?? admin.default_user_key!;
 
     // ── 场景 A：删除 Agent（面板 delete-cascade 的最终动作）──
-    console.log("\n场景 A — agent/archive（删除 Agent：应连带删除该 agent 的 memory 内容）");
+    console.log("\nScenario A — agent/archive (deleting an Agent should also delete its memory content)");
     const a = await setup(adminKey, "archive");
-    check("前置：memory 资产存在", (await assetStatus(a)).exists);
-    check("前置：绑定存在", (await bindings(a)).includes(a.memoryId));
-    check("前置：L0 有 3 条", (await countL0(a)) === 3);
+    check("Precondition: Memory asset exists", (await assetStatus(a)).exists);
+    check("Precondition: Binding exists", (await bindings(a)).includes(a.memoryId));
+    check("Precondition: L0 has 3 records", (await countL0(a)) === 3);
 
     await must("agent/archive", post("/v3/meta/agent/archive", { agent_id: a.agentId }, a.userKey));
 
     const aAfter = await assetStatus(a);
-    check("删 Agent 后 memory 资产被删除", !aAfter.exists, `asset/get code=${aAfter.code}`);
+    check("Memory asset deleted after Agent deletion", !aAfter.exists, `asset/get code=${aAfter.code}`);
 
     // 关键回归点：修复前这里会残留 3 条（资产没了但内容还在 → 永久孤儿数据）
     const aL0 = await countL0(a);
-    check("删 Agent 后该 agent 的 memory 内容也被清零（无孤儿数据）", aL0 === 0, `实际残留 ${aL0} 条`);
+    check("Agent memory content cleared after deletion (no orphaned data)", aL0 === 0, `Actual remaining ${aL0} records`);
 
     // ── 场景 B：clear（新接口）──
-    console.log("\n场景 B — /v3/chat-memory/clear（新接口）");
+    console.log("\nScenario B — /v3/chat-memory/clear (new endpoint)");
     const b = await setup(adminKey, "clear");
     const beforeAsset = await post<{ visibility: string; owner_user_id: string; name?: string }>(
       "/v3/meta/asset/get", { asset_id: b.memoryId }, b.userKey,
     );
-    check("前置：memory 资产存在", beforeAsset.body.code === 0);
-    check("前置：L0 有 3 条", (await countL0(b)) === 3);
+    check("Precondition: Memory asset exists", beforeAsset.body.code === 0);
+    check("Precondition: L0 has 3 records", (await countL0(b)) === 3);
 
     const cleared = await must<{
       items: Array<{ memory_id: string; cleared: boolean; l0_deleted: number }>;
       all_cleared: boolean;
     }>("chat-memory/clear", post("/v3/chat-memory/clear", { memory_ids: [b.memoryId] }, b.userKey));
 
-    check("clear 返回 all_cleared=true", cleared.all_cleared === true);
-    check("clear 删除了 3 条 L0", cleared.items[0].l0_deleted === 3, `实际 ${cleared.items[0].l0_deleted}`);
-    check("清空后 L0 归零", (await countL0(b)) === 0);
-    check("清空后 memory 资产仍存在", (await assetStatus(b)).exists);
-    check("清空后 Agent 绑定仍在", (await bindings(b)).includes(b.memoryId));
+    check("clear returns all_cleared=true", cleared.all_cleared === true);
+    check("clear deleted 3 L0 records", cleared.items[0].l0_deleted === 3, `Actual ${cleared.items[0].l0_deleted}`);
+    check("L0 count is zero after clearing", (await countL0(b)) === 0);
+    check("Memory asset still exists after clearing", (await assetStatus(b)).exists);
+    check("Agent binding remains after clearing", (await bindings(b)).includes(b.memoryId));
 
     const afterAsset = await post<{ visibility: string; owner_user_id: string; name?: string }>(
       "/v3/meta/asset/get", { asset_id: b.memoryId }, b.userKey,
     );
     check(
-      "清空后 Owner / 可见性 / 名称不变",
+      "Owner / visibility / name unchanged after clearing",
       afterAsset.body.data?.owner_user_id === beforeAsset.body.data?.owner_user_id
       && afterAsset.body.data?.visibility === beforeAsset.body.data?.visibility
       && afterAsset.body.data?.name === beforeAsset.body.data?.name,
@@ -230,16 +230,16 @@ async function main() {
 
     // 清完继续写入，不需要重建
     await addMsgs(b, 2);
-    check("清空后可直接继续写入原 memory_id", (await countL0(b)) === 2);
+    check("Can write to the original memory_id after clearing", (await countL0(b)) === 2);
 
     // 幂等
     const again = await must<{ items: Array<{ cleared: boolean; l0_deleted: number }> }>(
-      "chat-memory/clear 再次",
+      "chat-memory/clear again",
       post("/v3/chat-memory/clear", { memory_ids: [b.memoryId] }, b.userKey),
     );
-    check("重复 clear 幂等成功", again.items[0].cleared === true);
+    check("Repeated clear succeeds idempotently", again.items[0].cleared === true);
 
-    console.log(`\n结果：${pass} passed, ${fail} failed\n`);
+    console.log(`\nResults:${pass} passed, ${fail} failed\n`);
   } finally {
     await gateway.stop();
     fs.rmSync(tmpDir, { recursive: true, force: true });

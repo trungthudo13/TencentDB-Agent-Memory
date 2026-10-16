@@ -93,7 +93,7 @@ export function parseFileBlocks(text: string): ParseResult {
 
     if (!closeMatch) {
       // 未闭合块 → 丢弃（通常是输出被截断）
-      warnings.push(`未闭合的 FILE 块，已丢弃: path="${rawPath}"`);
+      warnings.push(`Discarded unclosed FILE block: path="${rawPath}"`);
       break;
     }
 
@@ -104,14 +104,14 @@ export function parseFileBlocks(text: string): ParseResult {
 
     const normPath = normalizeWikiPath(rawPath);
     if (!normPath) {
-      warnings.push(`非法 path 已跳过: "${rawPath}"`);
+      warnings.push(`Skipped invalid path: "${rawPath}"`);
       continue;
     }
 
     // 去掉块内容首尾多余空行，但保留 frontmatter 结构。
     const content = stripBlockEdges(rawContent);
     if (!content.trim()) {
-      warnings.push(`空 FILE 块已跳过: "${normPath}"`);
+      warnings.push(`Skipped empty FILE block: "${normPath}"`);
       continue;
     }
 

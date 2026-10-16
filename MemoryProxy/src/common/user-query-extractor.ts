@@ -185,7 +185,7 @@ export function extractUserQueryText(raw: string): string {
   // 2e) 残留的会话初始化表单标题行（如「会话初始化 — 选择 Agent 与任务」）
   text = text
     .split("\n")
-    .filter((line) => !line.includes(SESSION_INIT_TITLE_MARKER))
+    .filter((line) => !line.includes(SESSION_INIT_TITLE_MARKER) && !line.includes("Session initialization"))
     .join("\n");
 
   // 2f) 折叠多余空行（前面剥除后可能留下大段空行）

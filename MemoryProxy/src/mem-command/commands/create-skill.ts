@@ -23,11 +23,11 @@ export async function executeCreateSkill(ctx: MemCommandContext): Promise<MemCom
   let messageText: string;
 
   if (!result.success) {
-    messageText = `❌ 本次对话归档失败：${result.error ?? "未知错误"}`;
+    messageText = `❌ Failed to archive this conversation: ${result.error ?? "Unknown error"}`;
   } else if (result.status === "empty") {
-    messageText = `⚠️ 本次对话暂无可归档内容，请继续对话后再试`;
+    messageText = `⚠️ No content to archive yet. Continue the conversation and retry`;
   } else {
-    messageText = `✅ 本次对话已归档成功，Skill 提取中`;
+    messageText = `✅ Conversation archived successfully. Skill extraction is in progress`;
   }
 
   const response = buildMemResponse(messageText, {

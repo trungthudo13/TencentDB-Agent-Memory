@@ -109,7 +109,7 @@ export async function injectMmdIntoMessages(
       mmdMaxTokenRatio,
     },
     output: {
-      result: `MMD 注入 messages：${totalMmdTokens} tokens (active only)`,
+      result: `MMD injected into messages: ${totalMmdTokens} tokens (active only)`,
       mmdTokens: totalMmdTokens,
       hasActive: !!activeMmdText,
       hasHistory: false,
@@ -347,16 +347,16 @@ async function buildActiveMmdBlock(
     }
     return [
       `<current_task_context>`,
-      `【当前活跃任务的mermaid流程图】这是你最近正在执行的任务的阶段性记录（此条下方的tool use未被汇总，进程可能有延迟，仅供参考）。`,
-      taskGoal ? `**任务目标:** ${taskGoal}` : "",
-      `**任务文件:** ${activeMmdFile}`,
+      `[Active task Mermaid diagram] Progress recorded for your current task. Tool calls below this entry have not been summarized; this record may lag and is for reference only.`,
+      taskGoal ? `**Task goal:** ${taskGoal}` : "",
+      `**Task file:** ${activeMmdFile}`,
       nodeIds.length > 0
-        ? `**节点索引:** 可通过 node_id 在 offload.{sessionid}.jsonl 中查找对应的工具调用记录。如需查看某个节点对应的原始工具调用与完整结果，请在 offload.{sessionid}.jsonl 中找到对应条目的 result_ref 并读取该文件。`
+        ? `**Node index:** Look up tool calls by node_id in offload.{sessionid}.jsonl. To inspect a node's original tool call and complete result, find its result_ref in that file and read the referenced file.`
         : "",
       "```mermaid",
       mmdContent,
       "```",
-      `标记为 "doing" 的节点是近期焦点（注：可能有延迟，下方的tool use未被统计，仅供参考），"done" 的已完成。请参考此保持方向感，避免重复已完成的工作。`,
+      `Nodes marked "doing" are recent focus areas (this may lag; tool calls below are not included); "done" nodes are complete. Use this as a reference to stay on track and avoid repeating completed work.`,
       `</current_task_context>`,
     ]
       .filter((line) => line !== "")

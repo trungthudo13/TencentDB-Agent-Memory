@@ -96,14 +96,14 @@ CID1="$(echo "$R1" | call_id_of)"
 echo "  call_id=$CID1  stage=$(echo "$R1" | extract_stage)" >&2
 
 if [[ "$MODE" == "bypass" ]]; then
-  R2="$(send_form_answer "$CID1" "否，本次不关联")"
+  R2="$(send_form_answer "$CID1" "No, skip linking")"
   echo "  BYPASSED" >&2
   echo "$SID"
   echo "SID=$SID BYPASSED=1" > /tmp/codex-qa-sid.env
   exit 0
 fi
 
-R2="$(send_form_answer "$CID1" "是，关联团队资产")"
+R2="$(send_form_answer "$CID1" "Yes, link team assets")"
 CID2="$(echo "$R2" | call_id_of)"
 STAGE2="$(echo "$R2" | extract_stage)"
 echo "  step2 stage=$STAGE2 call_id=$CID2" >&2
@@ -129,7 +129,7 @@ AGENT_OPTS="$(echo "$R3" | extract_options)"
 AGENT_LABEL="$(echo "$AGENT_OPTS" | grep -F "$AGENT" | head -1)"
 if [[ -z "$AGENT_LABEL" ]]; then
   # fallback：取第一个非"更多"的选项
-  AGENT_LABEL="$(echo "$AGENT_OPTS" | grep -v -F "更多..." | head -1)"
+  AGENT_LABEL="$(echo "$AGENT_OPTS" | grep -v -F "More..." | head -1)"
 fi
 echo "  picking agent: $AGENT_LABEL" >&2
 
@@ -146,12 +146,12 @@ while [[ -n "$CID4" ]] && [[ "$STAGE4" == "task_select" || "$STAGE4" == "agent_t
   if [[ -n "$TASK" ]]; then
     PICK="$(echo "$TASK_OPTS" | grep -F "$TASK" | head -1)"
   else
-    PICK="$(echo "$TASK_OPTS" | grep -v -F "更多..." | head -1)"
+    PICK="$(echo "$TASK_OPTS" | grep -v -F "More..." | head -1)"
   fi
   if [[ -z "$PICK" ]]; then
     # 没匹配到，翻页
-    if echo "$TASK_OPTS" | grep -qF "更多..."; then
-      PICK="$(echo "$TASK_OPTS" | grep -F "更多..." | head -1)"
+    if echo "$TASK_OPTS" | grep -qF "More..."; then
+      PICK="$(echo "$TASK_OPTS" | grep -F "More..." | head -1)"
       echo "  paginate: $PICK" >&2
     else
       echo "ERR: task '$TASK' not found, no more pages"

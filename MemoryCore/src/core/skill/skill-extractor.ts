@@ -198,8 +198,8 @@ export class SkillExtractor {
     // 主 Agent 注入抽取提示（reason 非空时放在 prompt 最前面）
     if (input.reason && input.reason.trim().length > 0) {
       const hintBlock = [
-        "## 主 Agent 的抽取提示",
-        "以下是主 Agent 对本次对话的说明，请重点参考其意图进行抽取：",
+        "## Extraction guidance from the primary Agent",
+        "The primary Agent provided the following guidance for this conversation. Focus on its intent during extraction:",
         input.reason,
       ].join("\n");
       prompt = `${hintBlock}\n\n---\n\n${prompt}`;

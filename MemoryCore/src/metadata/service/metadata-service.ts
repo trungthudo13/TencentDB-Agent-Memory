@@ -98,10 +98,10 @@ import { buildChatMemoryAssetId, resolveChatMemoryAgentId } from "../utils/chat-
 // ── 默认 Agent / Team 常量 ──
 
 const DEFAULT_TEAM_NAME = "default-team";
-const DEFAULT_TEAM_DESCRIPTION = "系统初始化时自动创建的默认团队，用于存放默认助手";
+const DEFAULT_TEAM_DESCRIPTION = "Default team created during system initialization to host the default assistant";
 
 const DEFAULT_AGENT_NAME = "default-agent";
-const DEFAULT_AGENT_DESCRIPTION = "默认助手，可处理通用开发任务与日常协作。";
+const DEFAULT_AGENT_DESCRIPTION = "Default assistant for general development tasks and everyday collaboration.";
 
 // prompt 拼接格式与前端手动创建 Agent 完全一致：
 // [card.rolePrompt, card.rulesPrompt].filter(Boolean).join('\n\n')
@@ -415,13 +415,13 @@ export class MetadataService {
         });
       } catch (err) {
         console.warn(
-          `[init-admin] 默认 Agent 创建失败，已跳过 (user=${created.user_id})`,
+          `[init-admin] Default Agent creation failed; skipped (user=${created.user_id})`,
           err instanceof Error ? err.message : err,
         );
       }
     } catch (err) {
       console.warn(
-        `[init-admin] 默认 Team 创建失败，已跳过 (user=${created.user_id})`,
+        `[init-admin] Default Team creation failed; skipped (user=${created.user_id})`,
         err instanceof Error ? err.message : err,
       );
     }

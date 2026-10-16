@@ -587,7 +587,7 @@ export class TcvdbSkillStore implements ISkillStore {
         collection: this.skillsCollection,
         shardNum: 1,
         replicaNum: 2,
-        description: "Skill 技能存储",
+        description: "Skill storage",
         embedding: {
           status: "enabled",
           field: "content",

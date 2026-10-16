@@ -12,8 +12,8 @@ const thisDir = path.dirname(fileURLToPath(import.meta.url));
 const entryScript = path.resolve(thisDir, "../scripts/export-tencent-vdb/dist/export-tencent-vdb.js");
 
 if (!fs.existsSync(entryScript)) {
-  console.error("❌  预编译产物不存在: " + entryScript);
-  console.error("   请先执行: npm run build:export-tencent-vdb");
+  console.error("❌  Precompiled output not found: " + entryScript);
+  console.error("   Run this first: npm run build:export-tencent-vdb");
   process.exit(1);
 }
 

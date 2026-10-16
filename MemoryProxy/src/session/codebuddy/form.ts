@@ -17,18 +17,18 @@ import type { TeamOption } from "../types.js";
 export const TOOL_NAME = "ask_followup_question";
 export const TOOLCALL_PREFIXES = ["call_session_init_", "toolu_session_init_"] as const;
 
-export const TEAM_FORM_TITLE = "会话初始化 — 选择 Team";
-export const AGENT_TASK_FORM_TITLE = "会话初始化 — 选择 Agent 与任务";
-export const RETRY_FORM_TITLE = "未能识别选择，请重新选择";
+export const TEAM_FORM_TITLE = "Session initialization — Select Team";
+export const AGENT_TASK_FORM_TITLE = "Session initialization — Select Agent and Task";
+export const RETRY_FORM_TITLE = "Selection not recognized. Please select again";
 /** 兼容旧测试的总标题（cleaner.ts 检测用）。 */
-export const COMBINED_FORM_TITLE = "会话初始化 — 选择 Team / Agent / 任务";
+export const COMBINED_FORM_TITLE = "Session initialization — Select Team / Agent / Task";
 
-export const SKIP_LABEL = "本次不关联（跳过注入，直接放行）";
+export const SKIP_LABEL = "Skip linking (continue without injection)";
 export const PATH_SEP = " / ";
 
-export const ASSET_CONFIRM_YES = "是，关联团队资产";
-export const ASSET_CONFIRM_NO = "否，本次不关联";
-export const ASSET_CONFIRM_FORM_TITLE = "会话初始化 — 是否关联团队资产";
+export const ASSET_CONFIRM_YES = "Yes, link team assets";
+export const ASSET_CONFIRM_NO = "No, skip linking";
+export const ASSET_CONFIRM_FORM_TITLE = "Session initialization — Link team assets";
 
 /**
  * 附在每步 question 文末的通用备注。
@@ -36,7 +36,7 @@ export const ASSET_CONFIRM_FORM_TITLE = "会话初始化 — 是否关联团队�
  * 进入 team / agent_task 后没有按钮内跳过，需要下一次会话重新选择。
  * 文案与 claude-code/workbuddy/codex/dsh 五端统一。
  */
-const SKIP_HINT = '（请选择最匹配的选项，当前暂不支持自定义输入。若选择跳过，本次 Session 将不注入团队资产）';
+const SKIP_HINT = '(Select the closest option; custom input is currently unsupported. Skipping disables team asset injection for this session.)';
 
 /** Returns true if the given string contains any CodeBuddy form title marker. */
 export function containsFormTitle(s: string): boolean {
@@ -132,7 +132,7 @@ function buildFollowupQuestionArgs(data: FormData): { title: string; questions: 
   if (stage === "asset_confirm") {
     questions.push({
       id: "asset_confirm",
-      question: "本次对话是否要关联团队资产？" + SKIP_HINT,
+      question: "Link team assets to this conversation?" + SKIP_HINT,
       options: [ASSET_CONFIRM_YES, ASSET_CONFIRM_NO],
       multiSelect: false,
     });
@@ -142,7 +142,7 @@ function buildFollowupQuestionArgs(data: FormData): { title: string; questions: 
   if (stage === "team") {
     questions.push({
       id: "team",
-      question: "请选择本次会话所属的 Team：" + SKIP_HINT,
+      question: "Select the Team for this session:" + SKIP_HINT,
       options: [
         ...teams.map((t) => `${t.team_name} (${t.team_id.slice(-8)})`),
       ],
@@ -167,7 +167,7 @@ function buildFollowupQuestionArgs(data: FormData): { title: string; questions: 
     ];
     questions.push({
       id: "agent",
-      question: `请选择「${team.team_name}」下要使用的 Agent：` + SKIP_HINT,
+      question: `Select an Agent in ${team.team_name}:` + SKIP_HINT,
       options: agentLabelOptions,
       multiSelect: false,
     });
@@ -186,7 +186,7 @@ function buildFollowupQuestionArgs(data: FormData): { title: string; questions: 
     if (taskOptions.length > 0) {
       questions.push({
         id: "task",
-        question: `请选择「${team.team_name}」下关联的任务：` + SKIP_HINT,
+        question: `Select a Task to link in ${team.team_name}:` + SKIP_HINT,
         options: taskOptions,
         multiSelect: false,
       });

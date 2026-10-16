@@ -100,14 +100,14 @@ export function createLlmClient(raw: RawLlmConfig | undefined): LlmClient {
   const config = normalizeLlmConfig(raw);
   if (!config.apiKey) {
     throw new Error(
-      "LLM apiKey 未配置：proxy 模式需 TMC 为该 service_id 推送 llm_binding；" +
-      "或设 LLM_MODE=custom + LLM_API_KEY 走自带端点",
+      "LLM apiKey is not configured: in proxy mode, TMC must push llm_binding for this service_id; " +
+      "or set LLM_MODE=custom and LLM_API_KEY to use your own endpoint",
     );
   }
   if (!config.baseUrl) {
     throw new Error(
-      "LLM baseUrl 未配置：proxy 模式需 TMC 为该 service_id 推送 llm_binding；" +
-      "或设 LLM_MODE=custom + LLM_BASE_URL 走自带端点",
+      "LLM baseUrl is not configured: in proxy mode, TMC must push llm_binding for this service_id; " +
+      "or set LLM_MODE=custom and LLM_BASE_URL to use your own endpoint",
     );
   }
 
@@ -127,7 +127,7 @@ export function createLlmClient(raw: RawLlmConfig | undefined): LlmClient {
       const label = params.label ?? "chat";
       const promptChars = params.system.length + params.prompt.length;
       const startMs = Date.now();
-      log.info(`LLM 调用开始 [${label}]`, {
+      log.info(`LLM call started [${label}]`, {
         model: config.model,
         protocol: config.protocol,
         promptChars,
@@ -172,7 +172,7 @@ export function createLlmClient(raw: RawLlmConfig | undefined): LlmClient {
             })();
 
         const u = usage ?? ({} as Record<string, number>);
-        log.info(`LLM 调用完成 [${label}]`, {
+        log.info(`LLM call completed [${label}]`, {
           ms: Date.now() - startMs,
           promptTokens: u.inputTokens ?? null,
           completionTokens: u.outputTokens ?? null,
@@ -181,11 +181,11 @@ export function createLlmClient(raw: RawLlmConfig | undefined): LlmClient {
           outputChars: text.length,
         });
         if (!text) {
-          log.warn(`LLM 返回空文本 [${label}]`, { finishReason: finishReason ?? null });
+          log.warn(`LLM returned empty text [${label}]`, { finishReason: finishReason ?? null });
         }
         return text;
       } catch (err) {
-        log.error(`LLM 调用失败 [${label}]`, {
+        log.error(`LLM call failed [${label}]`, {
           ms: Date.now() - startMs,
           error: err instanceof Error ? err.message : String(err),
         });

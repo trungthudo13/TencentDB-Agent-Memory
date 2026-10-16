@@ -1108,12 +1108,12 @@ export async function handleWorkbuddyEndpoint(
         const { buildMemResponse } = await import("./mem-command/response-builder.js");
         // reset 场景下的 gate: 换成针对性文案,详见 codexHandler 同名段
         const gateText = (initResult as any).resetFlow
-          ? "⚠️ mem:session-reset 需要 Plan 模式支持。\n\n"
-            + "workbuddy 客户端当前不在 Plan 模式，无法弹出资产选择表单。\n"
-            + "请切到 Plan 模式后再执行 mem:session-reset。"
-          : "检测到未开启 Plan 模式，本次会话跳过资产注入。"
-            + "如需管理 Skill / Task / Agent，请切到 Plan 模式后重新开启新会话。"
-            + "本次消息将直接由 LLM 回答。";
+          ? "⚠️ mem:session-reset requires Plan mode.\n\n"
+            + "workbuddy is not in Plan mode and cannot display the asset selection form.\n"
+            + "Switch to Plan mode, then run mem:session-reset again."
+          : "Plan mode is disabled. Asset injection is skipped for this session."
+            + "To manage Skill / Task / Agent, switch to Plan mode and start a new session."
+            + "The LLM will answer this message directly.";
         return buildMemResponse(gateText, {
           protocol: "responses",
           stream: isStream,
@@ -1210,7 +1210,7 @@ export async function handleWorkbuddyEndpoint(
 
       if (initResult.resetFlow && initResult.justRegistered && !initResult.bypassed) {
         _resetFlowResult = {
-          agentName: initResult.agentDetail?.name ?? "未知",
+          agentName: initResult.agentDetail?.name ?? "Unknown",
           // agentIdShort 字段名沿用历史，但此处**存完整 agent_id**（如 agt-1celthr7yn）。
           // 之前 slice(-8) 会截断成 "elthr7yn" 用户看不懂，与 team 截断问题对称。
           agentIdShort: (initResult.sessionInfo as Record<string, unknown>)?.agent_id
@@ -1246,15 +1246,15 @@ export async function handleWorkbuddyEndpoint(
         ? `- **Team**: ${teamIdShort}`
         : null;
     const lines = bypassed
-      ? ["✅ 已跳过团队资产关联", "", "后续对话不注入任何团队资产（Skill / 记忆 / Knowledge）。"]
+      ? ["✅ Team asset linking skipped", "", "No team assets (Skill / Memory / Knowledge) will be injected into subsequent conversation turns."]
       : [
-          "✅ 已重新绑定团队资产",
+          "✅ Team assets relinked",
           "",
           `- **Agent**: ${agentName}${agentIdShort ? ` (${agentIdShort})` : ""}`,
           teamLine,
-          taskName ? `- **Task**: ${taskName}` : "- **Task**: 未关联",
+          taskName ? `- **Task**: ${taskName}` : "- **Task**: Not linked",
           "",
-          "后续对话将使用新 Agent 的 Skill、记忆和知识资产。",
+          "Subsequent conversation turns will use the new Agent's skills, memories, and knowledge assets.",
         ].filter(Boolean);
     const text = (lines as string[]).join("\n");
 
@@ -1281,7 +1281,7 @@ export async function handleWorkbuddyEndpoint(
       if (memCmd?.command === "session-reset") memCmd = null;
       if (memCmd) {
         if (!sessionInfo || injectionSkipped) {
-          const errText = `⚠️ 会话未初始化，命令不可用。请先完成 session 初始化（选择 Team/Agent）后重试。`;
+          const errText = `⚠️ Command unavailable: session not initialized. Complete session initialization (select Team/Agent), then retry.`;
           const errResponse = buildMemResponse(errText, {
             protocol: "responses",
             stream: isStream,

@@ -15,18 +15,18 @@ export const apiResponseEnvelopeSchema = z.object({
 "request_id": z.string(),
 "data": z.optional(z.object({
     
-    }).describe("接口特定数据，结构见各接口定义。"))
-    }).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<ApiResponseEnvelope>
+    }).describe("Endpoint-specific data; see each endpoint definition for its structure."))
+    }).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<ApiResponseEnvelope>
 
 /**
  * @description 团队记忆 4 ID 隔离字段（单值）。**全部可选**：接口 schema 层不做必填\n校验，由内核侧按\"接口语义\"决定哪些 ID 在该接口下必需。\n\n**错误码（与全接口统一）**：\n  - 任一 ID 不属于当前鉴权凭证解析出的租户 / 实例 → `404`\n    （不暴露存在性，与 offload.yaml 同契约）；\n  - 多个 ID 均可见但归属关系不一致（如 `(team_id, agent_id)` 不\n    构成有效 Agent 归属、`task_id` 不属于 `team_id`、`(task_id,\n    agent_id) ∉ task_agents`） → `403`，写审计日志。\n\n**复合唯一键 `(team_id, agent_id)`** 是**全接口统一规则**：\nagent_id 本身已全局唯一；同一 agent_id 不会出现在两个 team_id\n下。任何接口同时传入 team_id 与 agent_id 时（无论显式 IdFields、\n资产对象内嵌 team_id+agent_id，或 `agent_ids` 集合归属校验），\n都按上述错误码处理。详见 `info.description` 的\n\"复合唯一键：`(team_id, agent_id)`\" 章节。\n\n所有 Memory 数据面接口（L0/L1/L2 等）**只接受单值精确寻址**，\n不提供 `agent_ids` / `user_ids` / `task_ids` 之类的多值范围收敛。\n一次调用对应一个 (team, agent, user, task) 组合。\n\n与 `tdai-memory-plugin/src/gateway/v2-skill-schemas.ts`\n的 IdFields 定义一致。\n
  */
 export const idFieldsSchema = z.object({
-    "team_id": z.optional(z.string().describe("团队 ID（PRD §3.2）。")),
-"agent_id": z.optional(z.string().describe("Agent ID（PRD §3.2）。全局唯一；与 `team_id` 组成\n复合唯一键 `(team_id, agent_id)`。\n")),
-"user_id": z.optional(z.string().describe("用户 ID（PRD §3.2，太湖账号映射）。")),
+    "team_id": z.optional(z.string().describe("Team ID (PRD §3.2).")),
+"agent_id": z.optional(z.string().describe("Agent ID (PRD §3.2). Globally unique; forms the unique composite key `(team_id, agent_id)` with `team_id`.\n")),
+"user_id": z.optional(z.string().describe("User ID (PRD §3.2, Taihu account mapping).")),
 "task_id": z.optional(z.string().describe("Task ID（PRD §3.2）。"))
-    }).describe("团队记忆 4 ID 隔离字段（单值）。**全部可选**：接口 schema 层不做必填\n校验，由内核侧按\"接口语义\"决定哪些 ID 在该接口下必需。\n\n**错误码（与全接口统一）**：\n  - 任一 ID 不属于当前鉴权凭证解析出的租户 / 实例 → `404`\n    （不暴露存在性，与 offload.yaml 同契约）；\n  - 多个 ID 均可见但归属关系不一致（如 `(team_id, agent_id)` 不\n    构成有效 Agent 归属、`task_id` 不属于 `team_id`、`(task_id,\n    agent_id) ∉ task_agents`） → `403`，写审计日志。\n\n**复合唯一键 `(team_id, agent_id)`** 是**全接口统一规则**：\nagent_id 本身已全局唯一；同一 agent_id 不会出现在两个 team_id\n下。任何接口同时传入 team_id 与 agent_id 时（无论显式 IdFields、\n资产对象内嵌 team_id+agent_id，或 `agent_ids` 集合归属校验），\n都按上述错误码处理。详见 `info.description` 的\n\"复合唯一键：`(team_id, agent_id)`\" 章节。\n\n所有 Memory 数据面接口（L0/L1/L2 等）**只接受单值精确寻址**，\n不提供 `agent_ids` / `user_ids` / `task_ids` 之类的多值范围收敛。\n一次调用对应一个 (team, agent, user, task) 组合。\n\n与 `tdai-memory-plugin/src/gateway/v2-skill-schemas.ts`\n的 IdFields 定义一致。\n") as unknown as z.ZodType<IdFields>
+    }).describe("Four single-value isolation IDs for team memory. **All optional**: endpoint schemas do not enforce required IDs; the core determines requirements from endpoint semantics.\n\n**Error codes (consistent across all endpoints)**:\n  - Any ID outside the tenant/instance resolved from current credentials → `404` (without revealing existence, matching offload.yaml);\n  - Multiple visible IDs with inconsistent ownership (invalid `(team_id, agent_id)`, `task_id` outside `team_id`, or `(task_id, agent_id) ∉ task_agents`) → `403` and an audit entry.\n\n**The unique composite key `(team_id, agent_id)` is a rule across all endpoints**: agent_id is already globally unique and cannot occur under two team_ids. Whenever both team_id and agent_id are provided (explicit IdFields, embedded asset ownership, or `agent_ids` membership checks), apply these error codes. See the \"Composite unique key: `(team_id, agent_id)`\" section of `info.description`.\n\nAll Memory data-plane endpoints (L0/L1/L2, etc.) **accept only exact single-value addressing**, not multi-value scopes such as `agent_ids`, `user_ids`, or `task_ids`. Each call corresponds to one (team, agent, user, task) combination.\n\nMatches IdFields in `tdai-memory-plugin/src/gateway/v2-skill-schemas.ts`.\n") as unknown as z.ZodType<IdFields>
 
 export const conversationRoleSchema = z.enum(["user", "assistant"]) as unknown as z.ZodType<ConversationRole>
 
@@ -36,7 +36,7 @@ export const conversationRoleSchema = z.enum(["user", "assistant"]) as unknown a
 export const actorRefSchema = z.object({
     "user_id": z.string(),
 "display_name": z.optional(z.string())
-    }).describe("紧凑的人员引用，用于 owner / collaborators 等展示场景。\n服务端有用户档案时填充 `display_name`，UI 可直接渲染，\n避免列表页 N 次二次查询；缺省时退化为仅显示 `user_id`。\n") as unknown as z.ZodType<ActorRef>
+    }).describe("Compact person reference for owner/collaborator display. The server populates `display_name` when a user profile exists so the UI can render directly without N follow-up queries on list pages; otherwise show only `user_id`.\n") as unknown as z.ZodType<ActorRef>
 
 export const paginationSchema = z.object({
     "limit": z.optional(z.int().min(1).max(100).default(20)),
@@ -49,10 +49,10 @@ export const assetTypeSchema = z.enum(["skill", "llm_wiki", "code_graph"]) as un
  * @description 通用资产变更返回。`asset_id` 为全局唯一、不可变 id，按资产类型\n前缀区分：Skill=`skl-`，LLM-Wiki=`wiki-`，Code-Graph=`cg-`。\n具体接口语义上等价于 `skill_id` / `wiki_id` / `code_graph_id`。\n
  */
 export const assetMutateDataSchema = z.object({
-    "asset_id": z.string().describe("全局唯一、不可变；跨 team/agent/user/task 全局唯一。"),
+    "asset_id": z.string().describe("Globally unique and immutable across team/agent/user/task."),
 "version": z.optional(z.string()),
 "updated_at": z.iso.datetime()
-    }).describe("通用资产变更返回。`asset_id` 为全局唯一、不可变 id，按资产类型\n前缀区分：Skill=`skl-`，LLM-Wiki=`wiki-`，Code-Graph=`cg-`。\n具体接口语义上等价于 `skill_id` / `wiki_id` / `code_graph_id`。\n") as unknown as z.ZodType<AssetMutateData>
+    }).describe("Generic asset mutation response. `asset_id` is globally unique and immutable, with type prefixes: Skill=`skl-`, LLM-Wiki=`wiki-`, Code-Graph=`cg-`. Semantically equivalent to `skill_id` / `wiki_id` / `code_graph_id` for the respective endpoints.\n") as unknown as z.ZodType<AssetMutateData>
 
 export const assetSearchRequestSchema = z.lazy(() => idFieldsSchema).and(z.object({
     "query": z.string().min(1).max(2048),
@@ -61,12 +61,12 @@ export const assetSearchRequestSchema = z.lazy(() => idFieldsSchema).and(z.objec
     })) as unknown as z.ZodType<AssetSearchRequest>
 
 export const assetSearchHitSchema = z.object({
-    "asset_id": z.string().describe("全局唯一资产 id，按 asset_type 取值与\n`skill_id` / `wiki_id` / `code_graph_id` / `memory_id` 对齐。\n"),
+    "asset_id": z.string().describe("Globally unique asset ID, aligned with `skill_id` / `wiki_id` / `code_graph_id` / `memory_id` according to asset_type.\n"),
 get "asset_type"(){
                 return assetTypeSchema
               },
 "name": z.optional(z.string()),
-"snippet": z.optional(z.string().describe("命中片段，便于直接展示，不保证可重放。")),
+"snippet": z.optional(z.string().describe("Matching excerpt for direct display; replayability is not guaranteed.")),
 "score": z.number()
     }) as unknown as z.ZodType<AssetSearchHit>
 
@@ -81,25 +81,25 @@ export const assetSearchDataSchema = z.object({
  */
 export const conversationItemSchema = z.object({
     "id": z.optional(z.string()),
-"version": z.optional(z.string().describe("该消息当前版本号。")),
+"version": z.optional(z.string().describe("Current version of this message.")),
 get "role"(){
                 return conversationRoleSchema
               },
 "content": z.string().min(1).max(8192),
-"timestamp": z.optional(z.iso.datetime().describe("消息实际发生时间；不传时使用服务端接收时间。")),
-"recorded_at": z.optional(z.iso.datetime().describe("历史导入时指定原始入库时间；不传时使用服务端接收时间。"))
-    }).describe("一条原始对话消息。形状与 offload.yaml 同名 schema 一致。\n`id` / `version` 为只读字段：写入入口不接受调用方指定，读取\n入口必返回；`version` 在每次该消息被更新时自增。\n") as unknown as z.ZodType<ConversationItem>
+"timestamp": z.optional(z.iso.datetime().describe("Actual message time; defaults to server receipt time when omitted.")),
+"recorded_at": z.optional(z.iso.datetime().describe("Original ingestion time for historical imports; defaults to server receipt time when omitted."))
+    }).describe("An original conversation message, matching the schema of the same name in offload.yaml. `id` / `version` are read-only: write endpoints reject caller-specified values, while reads always return them. `version` increments on every update.\n") as unknown as z.ZodType<ConversationItem>
 
 export const conversationAddRequestSchema = z.lazy(() => idFieldsSchema).and(z.object({
-    "session_id": z.string().describe("业务侧会话 ID；不传则由平台自动生成临时 session。"),
+    "session_id": z.string().describe("Application session ID; the platform generates a temporary session when omitted."),
 get "messages"(){
-                return z.array(conversationItemSchema.describe("一条原始对话消息。形状与 offload.yaml 同名 schema 一致。\n`id` / `version` 为只读字段：写入入口不接受调用方指定，读取\n入口必返回；`version` 在每次该消息被更新时自增。\n")).min(1).max(100)
+                return z.array(conversationItemSchema.describe("An original conversation message, matching the schema of the same name in offload.yaml. `id` / `version` are read-only: write endpoints reject caller-specified values, while reads always return them. `version` increments on every update.\n")).min(1).max(100)
               }
     })) as unknown as z.ZodType<ConversationAddRequest>
 
 export const conversationAddDataSchema = z.object({
     "accepted_ids": z.array(z.string()),
-"accepted_versions": z.array(z.string()).describe("与 `accepted_ids` 一一对应、同序的版本号列表。新建消息\n版本号固定为 `v1`。\n"),
+"accepted_versions": z.array(z.string()).describe("Version numbers corresponding one-to-one with `accepted_ids` in the same order. New messages always start at `v1`.\n"),
 "total_count": z.int()
     }) as unknown as z.ZodType<ConversationAddData>
 
@@ -113,7 +113,7 @@ export const conversationQueryRequestSchema = z.lazy(() => idFieldsSchema).and(z
 
 export const conversationQueryDataSchema = z.object({
     get "messages"(){
-                return z.array(conversationItemSchema.describe("一条原始对话消息。形状与 offload.yaml 同名 schema 一致。\n`id` / `version` 为只读字段：写入入口不接受调用方指定，读取\n入口必返回；`version` 在每次该消息被更新时自增。\n"))
+                return z.array(conversationItemSchema.describe("An original conversation message, matching the schema of the same name in offload.yaml. `id` / `version` are read-only: write endpoints reject caller-specified values, while reads always return them. `version` increments on every update.\n"))
               },
 "total": z.int()
     }) as unknown as z.ZodType<ConversationQueryData>
@@ -137,9 +137,9 @@ export const conversationSearchDataSchema = z.object({
     }) as unknown as z.ZodType<ConversationSearchData>
 
 export const conversationDeleteRequestSchema = z.object({
-    "message_ids": z.optional(z.array(z.string()).min(1).max(5000).describe("待删除的对话消息 id 列表。单次至多 5000 条。")),
-"session_ids": z.optional(z.array(z.string()).min(1).max(100).describe("待清空的会话 id 列表，单次至多 100 条。")),
-"session_id": z.optional(z.string().describe("已废弃，改用 session_ids。"))
+    "message_ids": z.optional(z.array(z.string()).min(1).max(5000).describe("Conversation message IDs to delete; at most 5000 per call.")),
+"session_ids": z.optional(z.array(z.string()).min(1).max(100).describe("Session IDs to clear; at most 100 per call.")),
+"session_id": z.optional(z.string().describe("Deprecated; use session_ids instead."))
     }) as unknown as z.ZodType<ConversationDeleteRequest>
 
 export const conversationDeleteDataSchema = z.object({
@@ -151,7 +151,7 @@ export const conversationDeleteDataSchema = z.object({
  */
 export const atomicDetailSchema = z.object({
     "id": z.string(),
-"version": z.string().describe("当前版本号。"),
+"version": z.string().describe("Current version."),
 "type": z.string().describe("episodic` / `persona` / `instruction"),
 "background": z.optional(z.string()),
 "content": z.string(),
@@ -161,7 +161,7 @@ export const atomicDetailSchema = z.object({
 "agent_id": z.optional(z.string()),
 "user_id": z.optional(z.string()),
 "task_id": z.optional(z.string())
-    }).describe("L1 记忆笔记对外视图。一期对外暴露 6 个字段；新增可选 4 ID\n透传字段供调用方按需消费（缺省 / 全空表示未挂团队上下文）。\n`version` 每次 `/atomic/update` 自增；新建笔记初始版本 `v1`。\n") as unknown as z.ZodType<AtomicDetail>
+    }).describe("Public L1 memory-note view. Initially exposes 6 fields, plus 4 optional passthrough isolation IDs for callers (omitted/all empty means no team context). `version` increments on each `/atomic/update`; new notes start at `v1`.\n") as unknown as z.ZodType<AtomicDetail>
 
 export const atomicUpdateRequestSchema = z.lazy(() => idFieldsSchema).and(z.object({
     "id": z.string(),
@@ -171,7 +171,7 @@ export const atomicUpdateRequestSchema = z.lazy(() => idFieldsSchema).and(z.obje
 
 export const atomicUpdateDataSchema = z.object({
     "id": z.string(),
-"version": z.string().describe("更新后的新版本号。"),
+"version": z.string().describe("New version after updating."),
 "updated_at": z.iso.datetime()
     }) as unknown as z.ZodType<AtomicUpdateData>
 
@@ -183,7 +183,7 @@ export const atomicQueryRequestSchema = z.lazy(() => paginationSchema).and(z.laz
 
 export const atomicQueryDataSchema = z.object({
     get "items"(){
-                return z.array(atomicDetailSchema.describe("L1 记忆笔记对外视图。一期对外暴露 6 个字段；新增可选 4 ID\n透传字段供调用方按需消费（缺省 / 全空表示未挂团队上下文）。\n`version` 每次 `/atomic/update` 自增；新建笔记初始版本 `v1`。\n"))
+                return z.array(atomicDetailSchema.describe("Public L1 memory-note view. Initially exposes 6 fields, plus 4 optional passthrough isolation IDs for callers (omitted/all empty means no team context). `version` increments on each `/atomic/update`; new notes start at `v1`.\n"))
               },
 "total": z.int()
     }) as unknown as z.ZodType<AtomicQueryData>
@@ -210,30 +210,30 @@ export const atomicSearchDataSchema = z.object({
  * @description L1 笔记按 id 批量删除请求。本期仅支持按主键精确删除，不接受\n按 `type` / 时间区间等条件批删；`ids` 缺省或为空数组视为非法\n请求，返回业务错误码 `400`。本接口不带分页参数。\n
  */
 export const atomicDeleteRequestSchema = z.object({
-    "ids": z.array(z.string()).min(1).max(5000).describe("笔记主键列表，单次至多 5000 条。")
-    }).describe("L1 笔记按 id 批量删除请求。本期仅支持按主键精确删除，不接受\n按 `type` / 时间区间等条件批删；`ids` 缺省或为空数组视为非法\n请求，返回业务错误码 `400`。本接口不带分页参数。\n") as unknown as z.ZodType<AtomicDeleteRequest>
+    "ids": z.array(z.string()).min(1).max(5000).describe("Note primary keys; at most 5000 per call.")
+    }).describe("Batch deletion of L1 notes by ID. Only exact primary-key deletion is supported; conditions such as `type` or time ranges are not accepted. Missing/empty `ids` is invalid and returns business code `400`. No pagination parameters.\n") as unknown as z.ZodType<AtomicDeleteRequest>
 
 export const atomicDeleteDataSchema = z.object({
     "deleted_count": z.int()
     }) as unknown as z.ZodType<AtomicDeleteData>
 
 export const scenarioEntrySchema = z.object({
-    "path": z.string().describe("文件形如 `工作/交付物/2026Q1.md`；目录以 `/` 结尾。"),
-"version": z.string().describe("该文件当前版本号；每次 `/scenario/write` 自增（新建文件\n初始版本 `v1`）。目录条目此字段固定为 `v0`。\n"),
+    "path": z.string().describe("File example: `work/deliverables/2026Q1.md`; directory paths end with `/`."),
+"version": z.string().describe("Current file version; increments on each `/scenario/write` (new files start at `v1`). Directory entries always use `v0`.\n"),
 "created_at": z.iso.datetime(),
 "updated_at": z.iso.datetime()
     }) as unknown as z.ZodType<ScenarioEntry>
 
 export const scenarioFileSchema = z.object({
     "path": z.string(),
-"version": z.string().describe("当前版本号。"),
+"version": z.string().describe("Current version."),
 "content": z.string(),
 "created_at": z.iso.datetime(),
 "updated_at": z.iso.datetime()
     }) as unknown as z.ZodType<ScenarioFile>
 
 export const scenarioListRequestSchema = z.lazy(() => idFieldsSchema).and(z.object({
-    "path_prefix": z.optional(z.string().describe("空字符串或不传表示根目录递归列举。"))
+    "path_prefix": z.optional(z.string().describe("Empty or omitted means recursively list the root directory."))
     })) as unknown as z.ZodType<ScenarioListRequest>
 
 export const scenarioListDataSchema = z.object({
@@ -245,7 +245,7 @@ export const scenarioListDataSchema = z.object({
 
 export const scenarioReadRequestSchema = z.lazy(() => idFieldsSchema).and(z.object({
     "path": z.string(),
-"version": z.optional(z.string().describe("可选；指定返回的历史版本号（`/scenario/write` 返回的\n`version`）。缺省返回当前最新版本。\n"))
+"version": z.optional(z.string().describe("Optional historical version to return (`version` from `/scenario/write`). Defaults to the latest version.\n"))
     })) as unknown as z.ZodType<ScenarioReadRequest>
 
 export const scenarioWriteRequestSchema = z.lazy(() => idFieldsSchema).and(z.object({
@@ -256,23 +256,23 @@ export const scenarioWriteRequestSchema = z.lazy(() => idFieldsSchema).and(z.obj
 
 export const scenarioWriteDataSchema = z.object({
     "path": z.string(),
-"version": z.string().describe("写入后的新版本号。"),
+"version": z.string().describe("New version after writing."),
 "updated_at": z.iso.datetime()
     }) as unknown as z.ZodType<ScenarioWriteData>
 
 export const scenarioRmRequestSchema = z.object({
-    "paths": z.array(z.string()).min(1).max(100).describe("待删除的场景文件路径列表（L2 Scenario 的原子 id 即 path）。")
+    "paths": z.array(z.string()).min(1).max(100).describe("Scene file paths to delete (the atomic ID of an L2 Scenario is its path).")
     }) as unknown as z.ZodType<ScenarioRmRequest>
 
 export const coreFileSchema = z.object({
-    "version": z.string().describe("核心记忆文件当前版本号；每次 `/core/write` 自增。"),
+    "version": z.string().describe("Current core memory file version; increments on each `/core/write`."),
 "content": z.string(),
 "created_at": z.iso.datetime(),
 "updated_at": z.iso.datetime()
     }) as unknown as z.ZodType<CoreFile>
 
 export const coreReadRequestSchema = z.lazy(() => idFieldsSchema).and(z.object({
-    "version": z.optional(z.string().describe("可选；指定返回的历史版本号（`/core/write` 返回的\n`version`）。缺省返回当前最新版本。\n"))
+    "version": z.optional(z.string().describe("Optional historical version to return (`version` from `/core/write`). Defaults to the latest version.\n"))
     })) as unknown as z.ZodType<CoreReadRequest>
 
 export const coreWriteRequestSchema = z.lazy(() => idFieldsSchema).and(z.object({
@@ -280,7 +280,7 @@ export const coreWriteRequestSchema = z.lazy(() => idFieldsSchema).and(z.object(
     })) as unknown as z.ZodType<CoreWriteRequest>
 
 export const coreWriteDataSchema = z.object({
-    "version": z.string().describe("写入后的新版本号。"),
+    "version": z.string().describe("New version after writing."),
 "updated_at": z.iso.datetime()
     }) as unknown as z.ZodType<CoreWriteData>
 
@@ -288,7 +288,7 @@ export const coreWriteDataSchema = z.object({
  * @description Skill 列表 / 检索 / 相似项等场景的紧凑表示，**不含** SKILL.md 全文。\n与 PRD §9.1.2 / §15.9 字段对齐。`SkillDetail` 在此基础上额外返回 `content`。\n
  */
 export const skillSummarySchema = z.object({
-    "skill_id": z.string().describe("全局唯一、不可变 Skill id（跨 team/agent/user/task 全局唯一），\n首选寻址键。`name` 不强制唯一（允许重名）；前缀固定 `skl-`。\n"),
+    "skill_id": z.string().describe("Globally unique, immutable Skill ID across team/agent/user/task; the preferred addressing key. `name` need not be unique; prefix is always `skl-`.\n"),
 "name": z.string(),
 "description": z.optional(z.string()),
 "version": z.string(),
@@ -302,11 +302,11 @@ export const skillSummarySchema = z.object({
 "success_rate": z.optional(z.number()),
 "created_at": z.optional(z.iso.datetime()),
 "updated_at": z.iso.datetime()
-    }).describe("Skill 列表 / 检索 / 相似项等场景的紧凑表示，**不含** SKILL.md 全文。\n与 PRD §9.1.2 / §15.9 字段对齐。`SkillDetail` 在此基础上额外返回 `content`。\n") as unknown as z.ZodType<SkillSummary>
+    }).describe("Compact Skill representation for lists, search, and similar items, **without** full SKILL.md content. Aligned with PRD §9.1.2 / §15.9. `SkillDetail` additionally includes `content`.\n") as unknown as z.ZodType<SkillSummary>
 
 export const skillDetailSchema = z.lazy(() => skillSummarySchema).and(z.object({
-    "content": z.string().describe("SKILL.md 全文（即 SKILL.md 这一个文件的正文）。"),
-"script_paths": z.array(z.string()).describe("Skill 包内除 SKILL.md 之外的全部脚本/资源文件路径列表\n（UNIX 风格相对路径，可能为空数组）。如需读取脚本正文请\n另行通过 `/skill/file/read`（按需）或将该 path 作为后续\n调用方资源管线的输入。\n")
+    "content": z.string().describe("Full SKILL.md text (the body of that single file)."),
+"script_paths": z.array(z.string()).describe("All script/resource paths in the Skill package except SKILL.md (UNIX-style relative paths; may be empty). Read script content separately through `/skill/file/read` on demand, or pass the path into the caller's subsequent resource pipeline.\n")
     })) as unknown as z.ZodType<SkillDetail>
 
 export const skillListRequestSchema = z.lazy(() => idFieldsSchema).and(z.object({
@@ -319,65 +319,65 @@ export const skillListRequestSchema = z.lazy(() => idFieldsSchema).and(z.object(
  */
 export const skillListDataSchema = z.object({
     get "items"(){
-                return z.array(skillSummarySchema.describe("Skill 列表 / 检索 / 相似项等场景的紧凑表示，**不含** SKILL.md 全文。\n与 PRD §9.1.2 / §15.9 字段对齐。`SkillDetail` 在此基础上额外返回 `content`。\n"))
+                return z.array(skillSummarySchema.describe("Compact Skill representation for lists, search, and similar items, **without** full SKILL.md content. Aligned with PRD §9.1.2 / §15.9. `SkillDetail` additionally includes `content`.\n"))
               },
 "total": z.int()
-    }).describe("列表项使用 `SkillSummary`（不含 `content`）。需要 SKILL.md 全文请\n改调 `/skill/get`，避免列表 payload 随 SKILL.md 大小线性放大。\n") as unknown as z.ZodType<SkillListData>
+    }).describe("List items use `SkillSummary` without `content`. Call `/skill/get` for full SKILL.md text, avoiding list payload growth proportional to SKILL.md size.\n") as unknown as z.ZodType<SkillListData>
 
 /**
  * @description **只允许按 `skill_id` 单值精确寻址**（与 Memory 数据面寻址\n规则一致；name / file_path 等历史寻址方式已下线）。\n\n本接口**不接受 IdFields**：`team_id` / `agent_id` / `user_id` /\n`task_id` 均不可传入。`skill_id` 全局唯一，归属（team / agent）\n由服务端按 skill 实体内嵌的归属字段解析；调用方所传 `skill_id`\n不在自身可见范围内 → `404`（不暴露存在性）。\n\n`version` 可选：不传返回当前最新版本；传具体版本号（如 `v2`）\n则返回该历史版本快照，未保留该版本时按 `404` 处理。\n
  */
 export const skillGetRequestSchema = z.object({
-    "skill_id": z.string().describe("全局唯一 Skill id，前缀 `skl-`。"),
-"version": z.optional(z.string().describe("可选；指定返回的历史版本号（写入接口返回的 `version`，如\n`v1` / `v2` / ...）。缺省返回当前最新版本。\n"))
-    }).describe("**只允许按 `skill_id` 单值精确寻址**（与 Memory 数据面寻址\n规则一致；name / file_path 等历史寻址方式已下线）。\n\n本接口**不接受 IdFields**：`team_id` / `agent_id` / `user_id` /\n`task_id` 均不可传入。`skill_id` 全局唯一，归属（team / agent）\n由服务端按 skill 实体内嵌的归属字段解析；调用方所传 `skill_id`\n不在自身可见范围内 → `404`（不暴露存在性）。\n\n`version` 可选：不传返回当前最新版本；传具体版本号（如 `v2`）\n则返回该历史版本快照，未保留该版本时按 `404` 处理。\n") as unknown as z.ZodType<SkillGetRequest>
+    "skill_id": z.string().describe("Globally unique Skill ID with prefix `skl-`."),
+"version": z.optional(z.string().describe("Optional historical version to return (`version` from a write endpoint, such as `v1`, `v2`, ...). Defaults to the latest version.\n"))
+    }).describe("**Only exact single-value addressing by `skill_id` is supported**, matching Memory data-plane rules; historical name/file_path addressing has been removed.\n\nThis endpoint **does not accept IdFields**: do not pass `team_id`, `agent_id`, `user_id`, or `task_id`. `skill_id` is globally unique; the server resolves team/agent ownership from the Skill entity. A supplied `skill_id` outside the caller's visibility returns `404` without revealing existence.\n\n`version` is optional: omitted returns the latest version; a specific value (such as `v2`) returns that snapshot, or `404` if it is no longer retained.\n") as unknown as z.ZodType<SkillGetRequest>
 
 /**
  * @description Skill 包内的单个**脚本/资源文件**（不包含 SKILL.md；SKILL.md\n始终由顶层 `content` 承载）。`content` 编码由 `encoding` 决定，\n默认 utf-8 文本；二进制资源（图片等）请用 base64。\n
  */
 export const skillFileSchema = z.object({
-    "path": z.string().describe("包内相对路径，UNIX 风格分隔符。**禁止**等于 `SKILL.md`、\n**禁止**以 `/` 开头、**禁止**包含 `..` 段、**禁止**绝对\n路径或盘符；服务端会做规范化与白名单字符校验，违反返 400。\n"),
-"content": z.string().describe("文件内容；当 `encoding=base64` 时为 base64 字符串。"),
+    "path": z.string().describe("Package-relative path with UNIX separators. Must **not** equal `SKILL.md`, begin with `/`, contain `..` segments, or be an absolute path or drive-qualified path. The server normalizes and validates allowed characters; violations return 400.\n"),
+"content": z.string().describe("File content; a base64 string when `encoding=base64`."),
 "encoding": z.optional(z.enum(["utf-8", "base64"]).default("utf-8")),
-"mime_type": z.optional(z.string().describe("可选 MIME 提示。服务端按黑名单拒绝可执行类型\n（`application/x-sh` / `text/x-php` 等），违反返 415。\n"))
-    }).describe("Skill 包内的单个**脚本/资源文件**（不包含 SKILL.md；SKILL.md\n始终由顶层 `content` 承载）。`content` 编码由 `encoding` 决定，\n默认 utf-8 文本；二进制资源（图片等）请用 base64。\n") as unknown as z.ZodType<SkillFile>
+"mime_type": z.optional(z.string().describe("Optional MIME hint. The server denies executable types (`application/x-sh`, `text/x-php`, etc.) using a denylist; violations return 415.\n"))
+    }).describe("A single **script/resource file** in the Skill package, excluding SKILL.md (always in top-level `content`). `encoding` controls content encoding, defaulting to utf-8 text; use base64 for binary resources such as images.\n") as unknown as z.ZodType<SkillFile>
 
 export const skillCreateRequestSchema = z.lazy(() => idFieldsSchema).and(z.object({
-    "name": z.string().describe("Skill 名；须等于 SKILL.md frontmatter.name；不强制唯一。"),
-"description": z.optional(z.string().describe("一句话说明；未传则从 SKILL.md frontmatter 取。")),
-"content": z.string().describe("SKILL.md 全文。"),
+    "name": z.string().describe("Skill name; must equal SKILL.md frontmatter.name; uniqueness is not required."),
+"description": z.optional(z.string().describe("One-sentence description; defaults to SKILL.md frontmatter when omitted.")),
+"content": z.string().describe("Full SKILL.md text."),
 get "script_files"(){
-                return z.array(skillFileSchema.describe("Skill 包内的单个**脚本/资源文件**（不包含 SKILL.md；SKILL.md\n始终由顶层 `content` 承载）。`content` 编码由 `encoding` 决定，\n默认 utf-8 文本；二进制资源（图片等）请用 base64。\n")).max(63).describe("Skill 包内除 SKILL.md 之外的脚本/资源文件。**总大小**\n（base64 解码后实际字节数）≤ 5 MB；**单文件** ≤ 1 MB；\n超出按 413 拒绝。`path` 不可等于 `SKILL.md`（按 422 拒绝；\nSKILL.md 永远走顶层 `content`）；路径冲突（多个相同\n`path`）按 422 拒绝。\n").optional()
+                return z.array(skillFileSchema.describe("A single **script/resource file** in the Skill package, excluding SKILL.md (always in top-level `content`). `encoding` controls content encoding, defaulting to utf-8 text; use base64 for binary resources such as images.\n")).max(63).describe("Script/resource files in the Skill package except SKILL.md. **Total size** (actual bytes after base64 decoding) ≤ 5 MB; **each file** ≤ 1 MB; larger payloads return 413. `path` must not equal `SKILL.md` (422; SKILL.md always uses top-level `content`). Duplicate paths return 422.\n").optional()
               }
     })) as unknown as z.ZodType<SkillCreateRequest>
 
 export const skillUpdateRequestSchema = z.lazy(() => idFieldsSchema).and(z.object({
-    "skill_id": z.string().describe("全局唯一 Skill id，前缀 `skl-`。"),
-"name": z.optional(z.string().describe("可选改名；新名仍须在 team+agent 内唯一。")),
+    "skill_id": z.string().describe("Globally unique Skill ID with prefix `skl-`."),
+"name": z.optional(z.string().describe("Optional rename; the new name must remain unique within team+agent.")),
 "description": z.optional(z.string()),
-"content": z.optional(z.string().describe("SKILL.md 全文，**全量覆盖**语义。")),
+"content": z.optional(z.string().describe("Full SKILL.md text; **replaces all content**.")),
 get "add_script_files"(){
-                return z.array(skillFileSchema.describe("Skill 包内的单个**脚本/资源文件**（不包含 SKILL.md；SKILL.md\n始终由顶层 `content` 承载）。`content` 编码由 `encoding` 决定，\n默认 utf-8 文本；二进制资源（图片等）请用 base64。\n")).max(63).describe("新增的脚本/资源文件。语义、约束与 `SkillCreateRequest\n.script_files` 一致：单文件 ≤ 1 MB、总 ≤ 5 MB（按更新\n后的整包计算）、`path` 防穿越、不可等于 `SKILL.md`。\n").optional()
+                return z.array(skillFileSchema.describe("A single **script/resource file** in the Skill package, excluding SKILL.md (always in top-level `content`). `encoding` controls content encoding, defaulting to utf-8 text; use base64 for binary resources such as images.\n")).max(63).describe("New script/resource files. Same semantics and constraints as `SkillCreateRequest.script_files`: each file ≤ 1 MB, total ≤ 5 MB for the entire updated package, no path traversal, and `path` must not equal `SKILL.md`.\n").optional()
               },
-"remove_script_paths": z.optional(z.array(z.string()).max(64).describe("要删除的脚本文件路径列表（与 `script_paths[]` 中的\n值匹配）。不存在的路径按 422 拒绝；包含 `SKILL.md`\n按 422 拒绝。\n"))
+"remove_script_paths": z.optional(z.array(z.string()).max(64).describe("Script paths to delete (matching `script_paths[]`). Missing paths return 422; including `SKILL.md` returns 422.\n"))
     })) as unknown as z.ZodType<SkillUpdateRequest>
 
 /**
  * @description Skill 写入类操作（create/update）返回的元信息。`skill_id`\n是后续寻址（get/update/delete）的首选键；首次 create 时由\n服务端分配并返回。\n
  */
 export const skillMutateDataSchema = z.object({
-    "skill_id": z.string().describe("全局唯一 Skill id，前缀 `skl-`。"),
+    "skill_id": z.string().describe("Globally unique Skill ID with prefix `skl-`."),
 "name": z.string(),
 "version": z.string(),
 "updated_at": z.iso.datetime()
-    }).describe("Skill 写入类操作（create/update）返回的元信息。`skill_id`\n是后续寻址（get/update/delete）的首选键；首次 create 时由\n服务端分配并返回。\n") as unknown as z.ZodType<SkillMutateData>
+    }).describe("Metadata from Skill create/update operations. `skill_id` is the preferred key for subsequent get/update/delete calls; the server assigns and returns it on initial creation.\n") as unknown as z.ZodType<SkillMutateData>
 
 /**
  * @description 批量按 `skill_id` 删除**整个 Skill**：每个 Skill 的 SKILL.md\n`content`、`name`、`description` 以及全部脚本文件\n（`script_paths[]` 指向的）一并失效。软删（status 改为\narchived，可后续治理类接口物理清理）。\n
  */
 export const skillDeleteRequestSchema = z.object({
-    "skill_ids": z.array(z.string()).min(1).max(100).describe("待删除的 Skill id 列表，前缀 `skl-`。")
-    }).describe("批量按 `skill_id` 删除**整个 Skill**：每个 Skill 的 SKILL.md\n`content`、`name`、`description` 以及全部脚本文件\n（`script_paths[]` 指向的）一并失效。软删（status 改为\narchived，可后续治理类接口物理清理）。\n") as unknown as z.ZodType<SkillDeleteRequest>
+    "skill_ids": z.array(z.string()).min(1).max(100).describe("Skill IDs to delete, with prefix `skl-`.")
+    }).describe("Batch-delete **entire Skills** by `skill_id`: SKILL.md `content`, `name`, `description`, and all scripts referenced by `script_paths[]` become invalid. Soft deletion sets status to archived; governance endpoints may physically delete later.\n") as unknown as z.ZodType<SkillDeleteRequest>
 
 export const skillSearchRequestSchema = z.lazy(() => idFieldsSchema).and(z.object({
     "query": z.string().min(1).max(2048),
@@ -398,23 +398,23 @@ export const skillSearchDataSchema = z.object({
 /**
  * @description `/skill/import` 入参 `messages[].role` 的取值。在 L0 add\n（`ConversationRole`）的 `user` / `assistant` 基础上扩展两种：\n- `tool_call`：模型发起的工具调用；\n- `tool_result`：工具调用返回。\n
  */
-export const skillImportRoleSchema = z.enum(["user", "assistant", "tool_call", "tool_result"]).describe("`/skill/import` 入参 `messages[].role` 的取值。在 L0 add\n（`ConversationRole`）的 `user` / `assistant` 基础上扩展两种：\n- `tool_call`：模型发起的工具调用；\n- `tool_result`：工具调用返回。\n") as unknown as z.ZodType<SkillImportRole>
+export const skillImportRoleSchema = z.enum(["user", "assistant", "tool_call", "tool_result"]).describe("Role values for `/skill/import` input `messages[].role`. Extends L0 add (`ConversationRole`) user/assistant with:\n- `tool_call`: a model-initiated tool call;\n- `tool_result`: a tool-call response.\n") as unknown as z.ZodType<SkillImportRole>
 
 /**
  * @description 一条用于抽取的会话消息。形状与 `ConversationItem` 完全一致\n（`{role, content, timestamp}`），仅 `role` 使用 `SkillImportRole`\n以承载 `tool_call` / `tool_result` 两种角色。\n\n语义约束：\n- 所有 role：`content` 非空。\n- `tool_call`：工具名、入参由调用方序列化/摘要后写入 `content`；\n  服务端不做结构化解析。\n- `tool_result`：工具结果或错误信息同样由调用方序列化/摘要后\n  写入 `content`。\n- call/result 的配对关系由 `messages[]` 的相对顺序与 `content`\n  内容表达，服务端不维护显式配对键。\n
  */
 export const skillImportMessageSchema = z.object({
     get "role"(){
-                return skillImportRoleSchema.describe("`/skill/import` 入参 `messages[].role` 的取值。在 L0 add\n（`ConversationRole`）的 `user` / `assistant` 基础上扩展两种：\n- `tool_call`：模型发起的工具调用；\n- `tool_result`：工具调用返回。\n")
+                return skillImportRoleSchema.describe("Role values for `/skill/import` input `messages[].role`. Extends L0 add (`ConversationRole`) user/assistant with:\n- `tool_call`: a model-initiated tool call;\n- `tool_result`: a tool-call response.\n")
               },
-"content": z.string().min(1).max(8192).describe("与 L0 add 同形状的正文文本。`tool_call` / `tool_result` 时\n为调用方对工具名、入参、结果或错误的序列化或摘要结果。\n"),
+"content": z.string().min(1).max(8192).describe("Body text matching L0 add. For `tool_call` / `tool_result`, the caller serializes or summarizes the tool name, arguments, result, or error.\n"),
 "timestamp": z.optional(z.iso.datetime())
-    }).describe("一条用于抽取的会话消息。形状与 `ConversationItem` 完全一致\n（`{role, content, timestamp}`），仅 `role` 使用 `SkillImportRole`\n以承载 `tool_call` / `tool_result` 两种角色。\n\n语义约束：\n- 所有 role：`content` 非空。\n- `tool_call`：工具名、入参由调用方序列化/摘要后写入 `content`；\n  服务端不做结构化解析。\n- `tool_result`：工具结果或错误信息同样由调用方序列化/摘要后\n  写入 `content`。\n- call/result 的配对关系由 `messages[]` 的相对顺序与 `content`\n  内容表达，服务端不维护显式配对键。\n") as unknown as z.ZodType<SkillImportMessage>
+    }).describe("Conversation message for extraction. Same shape as `ConversationItem` (`{role, content, timestamp}`), except `role` uses `SkillImportRole` to support `tool_call` / `tool_result`.\n\nSemantic constraints:\n- All roles require nonempty `content`.\n- `tool_call`: caller serializes/summarizes tool name and arguments into `content`; the server does not parse the structure.\n- `tool_result`: caller likewise serializes/summarizes results or errors into `content`.\n- Call/result pairing is expressed through order in `messages[]` and `content`; the server maintains no explicit pairing key.\n") as unknown as z.ZodType<SkillImportMessage>
 
 export const skillImportRequestSchema = z.lazy(() => idFieldsSchema).and(z.object({
-    "session_id": z.optional(z.string().describe("业务侧会话 ID；与 L0 add 同义。会写入抽取产物的\n`source_refs.session_id`，用于后续溯源。不会触发\n服务端跨接口隐式取数据。\n")),
+    "session_id": z.optional(z.string().describe("Application session ID, equivalent to L0 add. Written into extracted `source_refs.session_id` for traceability; does not trigger implicit cross-endpoint data retrieval on the server.\n")),
 get "messages"(){
-                return z.array(skillImportMessageSchema.describe("一条用于抽取的会话消息。形状与 `ConversationItem` 完全一致\n（`{role, content, timestamp}`），仅 `role` 使用 `SkillImportRole`\n以承载 `tool_call` / `tool_result` 两种角色。\n\n语义约束：\n- 所有 role：`content` 非空。\n- `tool_call`：工具名、入参由调用方序列化/摘要后写入 `content`；\n  服务端不做结构化解析。\n- `tool_result`：工具结果或错误信息同样由调用方序列化/摘要后\n  写入 `content`。\n- call/result 的配对关系由 `messages[]` 的相对顺序与 `content`\n  内容表达，服务端不维护显式配对键。\n")).min(1).max(500)
+                return z.array(skillImportMessageSchema.describe("Conversation message for extraction. Same shape as `ConversationItem` (`{role, content, timestamp}`), except `role` uses `SkillImportRole` to support `tool_call` / `tool_result`.\n\nSemantic constraints:\n- All roles require nonempty `content`.\n- `tool_call`: caller serializes/summarizes tool name and arguments into `content`; the server does not parse the structure.\n- `tool_result`: caller likewise serializes/summarizes results or errors into `content`.\n- Call/result pairing is expressed through order in `messages[]` and `content`; the server maintains no explicit pairing key.\n")).min(1).max(500)
               }
     })) as unknown as z.ZodType<SkillImportRequest>
 
@@ -424,27 +424,27 @@ get "messages"(){
 export const skillImportDiagnosticSchema = z.object({
     "code": z.enum(["oversized_message_truncated", "empty_assistant_content", "llm_low_confidence"]),
 "message": z.string(),
-"message_index": z.optional(z.int().min(0).describe("触发该诊断的 messages[] 下标；不针对单消息的诊断可省略。"))
-    }).describe("抽取过程中的非阻断警告。") as unknown as z.ZodType<SkillImportDiagnostic>
+"message_index": z.optional(z.int().min(0).describe("Index in messages[] that triggered the diagnostic; optional for diagnostics not tied to a single message."))
+    }).describe("Non-blocking warning during extraction.") as unknown as z.ZodType<SkillImportDiagnostic>
 
 /**
  * @description 抽取响应。服务端固定落库为 `status=draft`，等待审核\n（对齐 PRD §16）。\n
  */
 export const skillImportDataSchema = z.object({
-    "skill_id": z.string().describe("全局唯一 Skill id，前缀 `skl-`。"),
+    "skill_id": z.string().describe("Globally unique Skill ID with prefix `skl-`."),
 "name": z.string(),
 "status": z.enum(["draft"]),
 "version": z.optional(z.string()),
-"preview_content": z.string().describe("抽取出的完整 SKILL.md 文本，供客户端渲染预览。"),
+"preview_content": z.string().describe("Complete extracted SKILL.md text for client preview."),
 "source_refs": z.optional(z.object({
     "session_id": z.optional(z.string()),
 "message_count": z.optional(z.int()),
-"messages_sha256": z.optional(z.string().describe("messages 数组的稳定哈希，用于幂等去重。"))
-    }).describe("写入 Skill 元数据的 source 引用，对齐 PRD §M。")),
+"messages_sha256": z.optional(z.string().describe("Stable hash of the messages array for idempotent deduplication."))
+    }).describe("Source reference written into Skill metadata, aligned with PRD §M.")),
 get "diagnostics"(){
-                return z.array(skillImportDiagnosticSchema.describe("抽取过程中的非阻断警告。"))
+                return z.array(skillImportDiagnosticSchema.describe("Non-blocking warning during extraction."))
               }
-    }).describe("抽取响应。服务端固定落库为 `status=draft`，等待审核\n（对齐 PRD §16）。\n") as unknown as z.ZodType<SkillImportData>
+    }).describe("Extraction response. Server always persists `status=draft`, awaiting review (PRD §16).\n") as unknown as z.ZodType<SkillImportData>
 
 export const teamStatusSchema = z.enum(["active", "archived"]) as unknown as z.ZodType<TeamStatus>
 
@@ -465,7 +465,7 @@ export const batchDeleteResultSchema = z.object({
     "id": z.string(),
 "reason": z.string()
     }))
-    }).describe("批量软删的结果，部分成功语义：成功的 id 进入 `deleted_ids`，\n其余进入 `failed`，每条带 `id` 与 `reason`（鉴权 / 不存在 / 状态不可删 等）。\n外层 envelope 仍返回 200；调用方需检查 `failed` 是否为空。\n") as unknown as z.ZodType<BatchDeleteResult>
+    }).describe("Batch soft-delete result with partial success: successful IDs go into `deleted_ids`; others go into `failed`, each with `id` and `reason` (authorization, missing resource, undeletable status, etc.). The outer envelope still returns 200; callers must check whether `failed` is empty.\n") as unknown as z.ZodType<BatchDeleteResult>
 
 export const teamBatchDeleteRequestSchema = z.object({
     "team_ids": z.array(z.string()).min(1).max(100)
@@ -487,19 +487,19 @@ export const taskBatchDeleteRequestSchema = z.object({
  * @description 团队主表（PRD §15.1 teams），并在 `/team/get` 响应里回填该团队\n当前的成员/资产 id 集合（`user_ids` / `agent_ids` / `task_ids`），\n作为 4 实体反向归属的唯一查询入口（替代被砍掉的 list 接口）。\n
  */
 export const teamDataSchema = z.object({
-    "team_id": z.string().describe("全局唯一团队 id，服务端创建时生成。"),
-"name": z.string().describe("团队名称，租户内唯一。"),
+    "team_id": z.string().describe("Globally unique team ID generated by the server on creation."),
+"name": z.string().describe("Team name, unique within the tenant."),
 "description": z.optional(z.string()),
-"owner_user_id": z.string().describe("团队 Owner 的 user_id（须为已存在 user）。"),
+"owner_user_id": z.string().describe("Team owner's user_id (must reference an existing user)."),
 get "status"(){
                 return teamStatusSchema
               },
-"user_ids": z.optional(z.array(z.string()).describe("该 Team 当前的成员 user_id 列表（active 态，含 owner）。\nTeam↔User **多对多关系的写权威字段**（写入入口：\n`TeamUpdateRequest.user_ids`）；同步反查视图\n`UserData.team_ids`。`/team/get` 保证回填；create/update\n响应可能为空数组或缺省。\n")),
-"agent_ids": z.optional(z.array(z.string()).describe("该 Team 当前的 Agent id 列表（active 态）。Team↔Agent **多对多\n关系的写权威字段**（写入入口：`TeamUpdateRequest.agent_ids`，\n或 `AgentCreateRequest.team_id` 在 agent 创建时建立归属）；\nagent 自身的 `team_id` 仍是该归属的镜像。`/team/get` 保证回填，\ncreate/update 响应可缺省。\n")),
-"task_ids": z.optional(z.array(z.string()).describe("该 Team 当前的 Task id 列表（非 archived 态）。只读字段，\n语义同 `user_ids`：`/team/get` 必返，create/update 响应可缺省。\n")),
+"user_ids": z.optional(z.array(z.string()).describe("Current team member user_ids (active, including owner). **Authoritative write field for the Team↔User many-to-many relationship** via `TeamUpdateRequest.user_ids`; synchronized with reverse view `UserData.team_ids`. `/team/get` always populates it; create/update responses may omit it or return an empty array.\n")),
+"agent_ids": z.optional(z.array(z.string()).describe("Current active Agent IDs in this team. **Authoritative write field for the Team↔Agent many-to-many relationship**, via `TeamUpdateRequest.agent_ids` or `AgentCreateRequest.team_id` on creation. The Agent's own `team_id` mirrors this membership. `/team/get` always populates it; create/update may omit it.\n")),
+"task_ids": z.optional(z.array(z.string()).describe("Current non-archived Task IDs in this team. Read-only; like `user_ids`, always returned by `/team/get` but may be omitted from create/update responses.\n")),
 "created_at": z.iso.datetime(),
 "updated_at": z.iso.datetime()
-    }).describe("团队主表（PRD §15.1 teams），并在 `/team/get` 响应里回填该团队\n当前的成员/资产 id 集合（`user_ids` / `agent_ids` / `task_ids`），\n作为 4 实体反向归属的唯一查询入口（替代被砍掉的 list 接口）。\n") as unknown as z.ZodType<TeamData>
+    }).describe("Team master record (PRD §15.1 teams). `/team/get` fills current member/asset ID sets (`user_ids`, `agent_ids`, `task_ids`) as the sole reverse-membership lookup for the four entities, replacing removed list endpoints.\n") as unknown as z.ZodType<TeamData>
 
 export const teamCreateRequestSchema = z.object({
     "name": z.string(),
@@ -518,31 +518,31 @@ export const teamUpdateRequestSchema = z.object({
     "team_id": z.string(),
 "name": z.optional(z.string()),
 "description": z.optional(z.string()),
-"owner_user_id": z.optional(z.string().describe("转移 Owner 时传入；新 Owner 须为该团队成员。")),
-"user_ids": z.optional(z.array(z.string()).max(200).describe("该 Team 的成员 user_id 全集（含 owner）。传入则整体替换；不传\n保持不变；空数组语义为\"仅保留 owner\"（服务端自动并入 owner，\n禁止移除 owner）。每个 `user_id` 须为已存在 user。\n同步反查视图 `UserData.team_ids`。\n")),
-"agent_ids": z.optional(z.array(z.string()).max(200).describe("该 Team 当前的 Agent id 全集。传入则整体替换；不传保持不变，\n空数组表示清空。每个 `agent_id` 须满足 `(team_id, agent_id)`\n复合键一致性（即该 agent 现有 `team_id` 必须等于本 team），\n否则按全接口统一规则处理（404 / 403）。本字段仅用于\"接管/解除\nagent 与 team 的关联\"，不修改 agent 自身其它字段。\n")),
+"owner_user_id": z.optional(z.string().describe("Provide to transfer ownership; the new owner must be a team member.")),
+"user_ids": z.optional(z.array(z.string()).max(200).describe("Complete set of team member user_ids, including owner. Replaces the set when supplied; omitted leaves it unchanged; empty means keep only the owner (server automatically includes the owner and forbids removal). Each user_id must exist. Synchronizes reverse view `UserData.team_ids`.\n")),
+"agent_ids": z.optional(z.array(z.string()).max(200).describe("Complete set of current Agent IDs for this team. Supplied replaces all; omitted leaves unchanged; empty clears. Each agent_id must satisfy composite `(team_id, agent_id)` consistency (its existing team_id must equal this team), otherwise apply endpoint-wide 404/403 rules. Only establishes/removes agent-team associations; does not change other Agent fields.\n")),
 get "status"(){
                 return teamStatusSchema.optional()
               }
-    }).describe("PATCH 语义，仅更新传入字段。`user_ids` / `agent_ids` 为 Team↔User\n与 Team↔Agent 多对多关系的**写权威字段**：传入则整体替换该 Team\n当前关联集合，不传则保持不变，传空数组表示清空（owner 永远保留\n在 `user_ids` 内，移除 owner 须先 `owner_user_id` 转移）。\n") as unknown as z.ZodType<TeamUpdateRequest>
+    }).describe("PATCH semantics: only supplied fields change. `user_ids` / `agent_ids` are **authoritative write fields** for Team↔User and Team↔Agent many-to-many relationships. Supplied replaces the team's set, omitted preserves it, empty clears it (owner always remains in user_ids; transfer owner_user_id before removing the old owner).\n") as unknown as z.ZodType<TeamUpdateRequest>
 
 /**
  * @description 用户主表（PRD §15.2 users）。User 自身只承载身份信息（name /\njob_description / status）；与 Team / Task / Agent 的所有关联\n**写路径都在对方侧**（Team 由 `TeamUpdateRequest.user_ids` 维护\n成员、`TeamCreateRequest.owner_user_id` 写入首位 owner；Agent 写\n`owner_user_id`；Task 写 `creator_user_id`）。此处的 `team_ids` /\n`task_ids` / `owned_agent_ids` / `task_agent_ids` 均为**只读反查\n视图**，仅 `/user/get` 保证回填；create/update 响应可能为空数组\n或缺省。\n
  */
 export const userDataSchema = z.object({
-    "user_id": z.string().describe("用户 id，服务端创建时生成。"),
-"name": z.string().describe("用户名/显示名。"),
-"job_description": z.optional(z.string().describe("职位/岗位描述（自由文本，给 Agent 提示用）。")),
-"team_ids": z.optional(z.array(z.string()).describe("该 user 所属 Team id 列表。**只读反查视图**，仅 `/user/get`\n保证回填；写路径在 team 侧（`TeamUpdateRequest.user_ids`）。\n")),
-"task_ids": z.optional(z.array(z.string()).describe("该 user 作为 creator 或参与方关联的 Task id 列表。**只读反查\n视图**，仅 `/user/get` 保证回填；写路径在 task 侧\n（`TaskCreateRequest.creator_user_id` / `TaskData.user_ids`）。\n")),
-"owned_agent_ids": z.optional(z.array(z.string()).describe("该 user 拥有的 Agent id 列表（即 `AgentData.owner_user_id`\n指向该 user 的全部 Agent）。**只读反查视图**，仅 `/user/get`\n保证回填；写路径在 agent 侧（`AgentCreateRequest.owner_user_id`\n/ `AgentUpdateRequest.owner_user_id`）。\n")),
-"task_agent_ids": z.optional(z.array(z.string()).describe("通过 `task_ids` 间接关联到的 Agent id 列表（即所参与的每个\nTask 的 `agent_ids` 并集，去重）。**只读派生字段**，仅\n`/user/get` 保证回填。\n")),
+    "user_id": z.string().describe("User ID generated by the server on creation."),
+"name": z.string().describe("Username/display name."),
+"job_description": z.optional(z.string().describe("Job/position description (free text for Agent context).")),
+"team_ids": z.optional(z.array(z.string()).describe("Team IDs this user belongs to. **Read-only reverse view**, guaranteed only by `/user/get`. Write through `TeamUpdateRequest.user_ids`.\n")),
+"task_ids": z.optional(z.array(z.string()).describe("Task IDs associated with the user as creator or participant. **Read-only reverse view**, guaranteed only by `/user/get`. Write on the task side (`TaskCreateRequest.creator_user_id` / `TaskData.user_ids`).\n")),
+"owned_agent_ids": z.optional(z.array(z.string()).describe("Agent IDs owned by this user (all Agents whose `AgentData.owner_user_id` points to this user). **Read-only reverse view**, guaranteed only by `/user/get`. Write through `AgentCreateRequest.owner_user_id` / `AgentUpdateRequest.owner_user_id`.\n")),
+"task_agent_ids": z.optional(z.array(z.string()).describe("Agent IDs indirectly associated through `task_ids`: deduplicated union of `agent_ids` across participating Tasks. **Read-only derived field**, guaranteed only by `/user/get`.\n")),
 get "status"(){
                 return userStatusSchema
               },
 "created_at": z.iso.datetime(),
 "updated_at": z.iso.datetime()
-    }).describe("用户主表（PRD §15.2 users）。User 自身只承载身份信息（name /\njob_description / status）；与 Team / Task / Agent 的所有关联\n**写路径都在对方侧**（Team 由 `TeamUpdateRequest.user_ids` 维护\n成员、`TeamCreateRequest.owner_user_id` 写入首位 owner；Agent 写\n`owner_user_id`；Task 写 `creator_user_id`）。此处的 `team_ids` /\n`task_ids` / `owned_agent_ids` / `task_agent_ids` 均为**只读反查\n视图**，仅 `/user/get` 保证回填；create/update 响应可能为空数组\n或缺省。\n") as unknown as z.ZodType<UserData>
+    }).describe("User master record (PRD §15.2 users). User contains only identity fields (name / job_description / status). **All relationship writes are on the other entity**: Team membership via TeamUpdateRequest.user_ids and initial owner via TeamCreateRequest.owner_user_id; Agent via owner_user_id; Task via creator_user_id. team_ids / task_ids / owned_agent_ids / task_agent_ids here are **read-only reverse views**, guaranteed only by `/user/get`; create/update may omit them or return empty arrays.\n") as unknown as z.ZodType<UserData>
 
 /**
  * @description 创建 user。仅承载身份信息；跨实体关联不在这里写——加入 Team\n通过 team 侧 owner 关系派生，关联 Agent 通过 `AgentCreateRequest\n.owner_user_id`，关联 Task 通过 `TaskCreateRequest.creator_user_id`\n/ `TaskCreateRequest.user_ids`。\n
@@ -550,7 +550,7 @@ get "status"(){
 export const userCreateRequestSchema = z.object({
     "name": z.string(),
 "job_description": z.optional(z.string())
-    }).describe("创建 user。仅承载身份信息；跨实体关联不在这里写——加入 Team\n通过 team 侧 owner 关系派生，关联 Agent 通过 `AgentCreateRequest\n.owner_user_id`，关联 Task 通过 `TaskCreateRequest.creator_user_id`\n/ `TaskCreateRequest.user_ids`。\n") as unknown as z.ZodType<UserCreateRequest>
+    }).describe("Create a user with identity information only. Cross-entity relationships are written elsewhere: Team membership is derived from team-side ownership, Agent association through AgentCreateRequest.owner_user_id, and Task association through TaskCreateRequest.creator_user_id / TaskCreateRequest.user_ids.\n") as unknown as z.ZodType<UserCreateRequest>
 
 /**
  * @description PATCH 语义，仅更新传入字段。跨实体关联同 `UserCreateRequest`，\n全部由对方侧承载，user 侧不接受关联写入。\n
@@ -562,7 +562,7 @@ export const userUpdateRequestSchema = z.object({
 get "status"(){
                 return userStatusSchema.optional()
               }
-    }).describe("PATCH 语义，仅更新传入字段。跨实体关联同 `UserCreateRequest`，\n全部由对方侧承载，user 侧不接受关联写入。\n") as unknown as z.ZodType<UserUpdateRequest>
+    }).describe("PATCH semantics: update only supplied fields. As with UserCreateRequest, all cross-entity relationships are maintained on the other side; user endpoints reject relationship writes.\n") as unknown as z.ZodType<UserUpdateRequest>
 
 export const userGetRequestSchema = z.object({
     "user_id": z.string()
@@ -572,22 +572,22 @@ export const userGetRequestSchema = z.object({
  * @description Agent 主表（PRD §15.4 agents）。`agent_id` 全局唯一、不可变；\n与 `team_id` 组成**复合唯一键** `(team_id, agent_id)`，即同一\n`agent_id` 不会出现在两个 `team_id` 下。\n
  */
 export const agentDataSchema = z.object({
-    "agent_id": z.string().describe("全局唯一 Agent id，服务端创建时生成。"),
-"team_id": z.string().describe("所属团队（一个 Agent 只属于一个 team）；与 `agent_id` 组成\n全局唯一复合键 `(team_id, agent_id)`。\n"),
-"name": z.string().describe("Agent 名称，team 内唯一。"),
-"description": z.optional(z.string().describe("一句话描述。")),
-"prompt": z.optional(z.string().describe("职责和行为约束。")),
-"owner_user_id": z.optional(z.string().describe("该 Agent 的拥有者 user_id。Agent↔User \"拥有\"关系的**唯一\n写入路径**；同步反查视图 `UserData.owned_agent_ids`。\n")),
+    "agent_id": z.string().describe("Globally unique Agent ID generated by the server on creation."),
+"team_id": z.string().describe("Owning team (one team per Agent); forms globally unique composite key `(team_id, agent_id)` with agent_id.\n"),
+"name": z.string().describe("Agent name, unique within the team."),
+"description": z.optional(z.string().describe("One-sentence description.")),
+"prompt": z.optional(z.string().describe("Responsibilities and behavioral constraints.")),
+"owner_user_id": z.optional(z.string().describe("Agent owner's user_id. The **only write path** for Agent↔User ownership; synchronizes reverse view `UserData.owned_agent_ids`.\n")),
 get "visibility"(){
                 return agentVisibilitySchema.optional()
               },
 get "status"(){
                 return agentStatusSchema
               },
-"task_ids": z.optional(z.array(z.string()).describe("关联到本 Agent 的 Task id 列表。**只读反查视图**，仅\n`/agent/get` 保证回填；写路径在 task 侧\n（`TaskCreateRequest.agent_ids` / `TaskUpdateRequest.agent_ids`）。\n")),
+"task_ids": z.optional(z.array(z.string()).describe("Task IDs associated with this Agent. **Read-only reverse view**, guaranteed only by `/agent/get`. Write through TaskCreateRequest.agent_ids / TaskUpdateRequest.agent_ids.\n")),
 "created_at": z.iso.datetime(),
 "updated_at": z.iso.datetime()
-    }).describe("Agent 主表（PRD §15.4 agents）。`agent_id` 全局唯一、不可变；\n与 `team_id` 组成**复合唯一键** `(team_id, agent_id)`，即同一\n`agent_id` 不会出现在两个 `team_id` 下。\n") as unknown as z.ZodType<AgentData>
+    }).describe("Agent master record (PRD §15.4 agents). agent_id is globally unique and immutable; with team_id it forms the **unique composite key** `(team_id, agent_id)`, so the same agent_id cannot occur under two team_ids.\n") as unknown as z.ZodType<AgentData>
 
 export const agentCreateRequestSchema = z.object({
     "team_id": z.string(),
@@ -605,57 +605,57 @@ get "visibility"(){
  */
 export const agentGetRequestSchema = z.object({
     "agent_id": z.string(),
-"team_id": z.optional(z.string().describe("可选；传入则与 `agent_id` 做复合键一致性校验。\n"))
-    }).describe("以 `agent_id` 全局唯一寻址。客户端可**可选**额外传 `team_id`\n以触发 `(team_id, agent_id)` 复合键一致性校验（不可见 → 404；\n可见但不匹配 → 403，规则同 `info.description`）。\n") as unknown as z.ZodType<AgentGetRequest>
+"team_id": z.optional(z.string().describe("Optional; when supplied, validates composite-key consistency with agent_id.\n"))
+    }).describe("Address by globally unique agent_id. Clients may **optionally** also provide team_id to validate `(team_id, agent_id)` consistency (invisible → 404; visible but mismatched → 403, as in info.description).\n") as unknown as z.ZodType<AgentGetRequest>
 
 /**
  * @description PATCH 语义，仅更新传入字段。\n客户端可**可选**额外传 `team_id` 触发 `(team_id, agent_id)`\n复合键一致性校验（语义同 `AgentGetRequest`）。\n注意：`team_id` 不可作为更新目标（Agent 归属 team 不可变）；\n若与 `agent_id` 实际归属不一致按 403 处理。\n
  */
 export const agentUpdateRequestSchema = z.object({
     "agent_id": z.string(),
-"team_id": z.optional(z.string().describe("可选；仅用于复合键一致性校验，不参与更新。\n")),
+"team_id": z.optional(z.string().describe("Optional; used only for composite-key consistency validation, not updates.\n")),
 "name": z.optional(z.string()),
 "description": z.optional(z.string()),
 "prompt": z.optional(z.string()),
-"owner_user_id": z.optional(z.string().describe("可选；传入即触发 owner 转移。新 owner 必须是本 Agent 所属\nteam 的当前成员，否则 422。转移成功后同步刷新双方\n`UserData.owned_agent_ids` 反查视图。\n")),
+"owner_user_id": z.optional(z.string().describe("Optional; supplying this transfers ownership. The new owner must be a current member of the Agent's team, otherwise 422. Successful transfers refresh both users' UserData.owned_agent_ids reverse views.\n")),
 get "visibility"(){
                 return agentVisibilitySchema.optional()
               },
 get "status"(){
                 return agentStatusSchema.optional()
               }
-    }).describe("PATCH 语义，仅更新传入字段。\n客户端可**可选**额外传 `team_id` 触发 `(team_id, agent_id)`\n复合键一致性校验（语义同 `AgentGetRequest`）。\n注意：`team_id` 不可作为更新目标（Agent 归属 team 不可变）；\n若与 `agent_id` 实际归属不一致按 403 处理。\n") as unknown as z.ZodType<AgentUpdateRequest>
+    }).describe("PATCH semantics: update only supplied fields. Clients may **optionally** also supply team_id to validate `(team_id, agent_id)` consistency, as in AgentGetRequest. team_id cannot be updated (Agent team ownership is immutable); mismatch with actual ownership returns 403.\n") as unknown as z.ZodType<AgentUpdateRequest>
 
 /**
  * @description Task 主表（PRD §15.5 tasks），含关联 Agent 与参与 User 列表。\nTask 是 User↔Task 与 Agent↔Task 两组多对多关系的**写权威侧**。\n
  */
 export const taskDataSchema = z.object({
-    "task_id": z.string().describe("全局唯一 Task id，服务端创建时生成。"),
+    "task_id": z.string().describe("Globally unique Task ID generated by the server on creation."),
 "team_id": z.string(),
-"creator_user_id": z.string().describe("创建者 user_id，**创建时必填、不可改**；与 `user_ids` 不重复\n语义——创建者自动计入 `user_ids` 反查集合。\n"),
+"creator_user_id": z.string().describe("Creator user_id, **required on creation and immutable**. Distinct from user_ids; the creator is automatically included in the user_ids reverse set.\n"),
 "title": z.optional(z.string()),
 "description": z.optional(z.string()),
 get "source_type"(){
                 return taskSourceTypeSchema.optional()
               },
 "source_url": z.optional(z.string()),
-"agent_ids": z.optional(z.array(z.string()).describe("该 Task 关联的 Agent id 列表。每个 `agent_id` 都必须满足\n`(team_id, agent_id)` 复合键一致性（与本 Task 的 `team_id`\n同一 team）；否则按全接口统一规则处理（不可见 404 /\n可见但归属不匹配 403）。\n")),
-"user_ids": z.optional(z.array(z.string()).describe("该 Task 关联的参与方 user_id 列表（不含 `creator_user_id`；\n创建者由 `creator_user_id` 单独承载）。User↔Task **多对多\n关系的写权威字段**；同步反查视图 `UserData.task_ids`。\n每个 `user_id` 须为本 Task 所属 team 的当前成员。\n")),
+"agent_ids": z.optional(z.array(z.string()).describe("Agent IDs associated with this Task. Each agent_id must satisfy `(team_id, agent_id)` consistency with this Task's team_id; otherwise apply endpoint-wide rules (invisible → 404; visible but ownership mismatch → 403).\n")),
+"user_ids": z.optional(z.array(z.string()).describe("Participating user_ids associated with this Task, excluding creator_user_id (stored separately). **Authoritative write field** for User↔Task many-to-many membership; synchronizes UserData.task_ids. Each user_id must be a current member of the Task's team.\n")),
 "created_at": z.iso.datetime(),
 "updated_at": z.iso.datetime()
-    }).describe("Task 主表（PRD §15.5 tasks），含关联 Agent 与参与 User 列表。\nTask 是 User↔Task 与 Agent↔Task 两组多对多关系的**写权威侧**。\n") as unknown as z.ZodType<TaskData>
+    }).describe("Task master record (PRD §15.5 tasks), including associated Agents and participating Users. Task is the **authoritative write side** for User↔Task and Agent↔Task many-to-many relationships.\n") as unknown as z.ZodType<TaskData>
 
 export const taskCreateRequestSchema = z.object({
-    "team_id": z.string().describe("所属 team；**创建时必填、不可改**（更新无此字段）。"),
-"creator_user_id": z.string().describe("创建者 user_id，**创建时必填、不可改**（更新无此字段）。须为\n`team_id` 所属 team 的当前成员。\n"),
+    "team_id": z.string().describe("Owning team; **required on creation and immutable** (absent from updates)."),
+"creator_user_id": z.string().describe("Creator user_id; **required on creation and immutable** (absent from updates). Must be a current member of team_id's team.\n"),
 "title": z.optional(z.string()),
 "description": z.optional(z.string()),
 get "source_type"(){
                 return taskSourceTypeSchema.optional()
               },
-"source_url": z.optional(z.string().describe("来源链接；SSRF 白名单同 WikiCreateRequest.source_url。")),
-"agent_ids": z.optional(z.array(z.string()).max(50).describe("可选，创建时一并关联的 Agent id。每个 `agent_id` 须满足\n`(team_id, agent_id)` 复合键一致性（与 `team_id` 同一 team）；\n否则按全接口统一规则处理（404 / 403）。\n")),
-"user_ids": z.optional(z.array(z.string()).max(50).describe("可选，创建时一并关联的参与方 user_id 列表（不含 creator；\ncreator 由 `creator_user_id` 单独承载）。每个 `user_id` 须为\n`team_id` 所属 team 的当前成员，否则 422。\n"))
+"source_url": z.optional(z.string().describe("Source link; same SSRF allowlist as WikiCreateRequest.source_url.")),
+"agent_ids": z.optional(z.array(z.string()).max(50).describe("Optional Agent IDs to associate on creation. Each must satisfy `(team_id, agent_id)` consistency with team_id, otherwise endpoint-wide 404/403 rules apply.\n")),
+"user_ids": z.optional(z.array(z.string()).max(50).describe("Optional participating user_ids to associate on creation, excluding the creator (stored separately in creator_user_id). Each user_id must be a current member of team_id's team, otherwise 422.\n"))
     }) as unknown as z.ZodType<TaskCreateRequest>
 
 export const taskGetRequestSchema = z.object({
@@ -673,9 +673,9 @@ get "source_type"(){
                 return taskSourceTypeSchema.optional()
               },
 "source_url": z.optional(z.string()),
-"agent_ids": z.optional(z.array(z.string()).max(50).describe("传入则整体替换 Task 的关联 Agent 集合；不传则保持不变，传空\n数组表示清空关联。每个 `agent_id` 须满足 `(team_id,\nagent_id)` 复合键一致性（与该 Task 的 `team_id` 同一 team），\n否则按全接口统一规则处理（404 / 403）。\n")),
-"user_ids": z.optional(z.array(z.string()).max(50).describe("传入则整体替换 Task 的关联参与方 user 集合（不含 creator）；\n不传则保持不变，传空数组表示清空关联。每个 `user_id` 须为\n本 Task 所属 team 的当前成员，否则 422。\n"))
-    }).describe("PATCH 语义，仅更新传入字段。`team_id` 与 `creator_user_id` **不\n可改**（请求体不接受这两个字段）；如需变更归属请走删除重建。\n") as unknown as z.ZodType<TaskUpdateRequest>
+"agent_ids": z.optional(z.array(z.string()).max(50).describe("Supplied replaces the Task's entire associated Agent set; omitted preserves it; empty clears it. Each agent_id must satisfy `(team_id, agent_id)` consistency with the Task's team_id, otherwise endpoint-wide 404/403 rules apply.\n")),
+"user_ids": z.optional(z.array(z.string()).max(50).describe("Supplied replaces the Task's entire participating User set, excluding the creator; omitted preserves it; empty clears it. Each user_id must be a current member of the Task's team, otherwise 422.\n"))
+    }).describe("PATCH semantics: update only supplied fields. team_id and creator_user_id are **immutable** and rejected in the request body; delete and recreate to change ownership.\n") as unknown as z.ZodType<TaskUpdateRequest>
 
 /**
  * @description 受理成功
@@ -689,7 +689,7 @@ export const addConversation200Schema = z.lazy(() => apiResponseEnvelopeSchema).
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const addConversationErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<AddConversationError>
+export const addConversationErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<AddConversationError>
 
 export const addConversationMutationRequestSchema = z.lazy(() => conversationAddRequestSchema) as unknown as z.ZodType<AddConversationMutationRequest>
 
@@ -707,7 +707,7 @@ export const queryConversation200Schema = z.lazy(() => apiResponseEnvelopeSchema
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const queryConversationErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<QueryConversationError>
+export const queryConversationErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<QueryConversationError>
 
 export const queryConversationMutationRequestSchema = z.lazy(() => conversationQueryRequestSchema) as unknown as z.ZodType<QueryConversationMutationRequest>
 
@@ -725,7 +725,7 @@ export const searchConversation200Schema = z.lazy(() => apiResponseEnvelopeSchem
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const searchConversationErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<SearchConversationError>
+export const searchConversationErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<SearchConversationError>
 
 export const searchConversationMutationRequestSchema = z.lazy(() => conversationSearchRequestSchema) as unknown as z.ZodType<SearchConversationMutationRequest>
 
@@ -743,7 +743,7 @@ export const deleteConversation200Schema = z.lazy(() => apiResponseEnvelopeSchem
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const deleteConversationErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<DeleteConversationError>
+export const deleteConversationErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<DeleteConversationError>
 
 export const deleteConversationMutationRequestSchema = z.lazy(() => conversationDeleteRequestSchema) as unknown as z.ZodType<DeleteConversationMutationRequest>
 
@@ -761,7 +761,7 @@ export const updateAtomic200Schema = z.lazy(() => apiResponseEnvelopeSchema).and
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const updateAtomicErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<UpdateAtomicError>
+export const updateAtomicErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<UpdateAtomicError>
 
 export const updateAtomicMutationRequestSchema = z.lazy(() => atomicUpdateRequestSchema) as unknown as z.ZodType<UpdateAtomicMutationRequest>
 
@@ -779,7 +779,7 @@ export const queryAtomic200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const queryAtomicErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<QueryAtomicError>
+export const queryAtomicErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<QueryAtomicError>
 
 export const queryAtomicMutationRequestSchema = z.lazy(() => atomicQueryRequestSchema) as unknown as z.ZodType<QueryAtomicMutationRequest>
 
@@ -797,7 +797,7 @@ export const searchAtomic200Schema = z.lazy(() => apiResponseEnvelopeSchema).and
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const searchAtomicErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<SearchAtomicError>
+export const searchAtomicErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<SearchAtomicError>
 
 export const searchAtomicMutationRequestSchema = z.lazy(() => atomicSearchRequestSchema) as unknown as z.ZodType<SearchAtomicMutationRequest>
 
@@ -815,7 +815,7 @@ export const deleteAtomic200Schema = z.lazy(() => apiResponseEnvelopeSchema).and
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const deleteAtomicErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<DeleteAtomicError>
+export const deleteAtomicErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<DeleteAtomicError>
 
 export const deleteAtomicMutationRequestSchema = z.lazy(() => atomicDeleteRequestSchema) as unknown as z.ZodType<DeleteAtomicMutationRequest>
 
@@ -833,7 +833,7 @@ export const lsScenario200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const lsScenarioErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<LsScenarioError>
+export const lsScenarioErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<LsScenarioError>
 
 export const lsScenarioMutationRequestSchema = z.lazy(() => scenarioListRequestSchema) as unknown as z.ZodType<LsScenarioMutationRequest>
 
@@ -851,7 +851,7 @@ export const readScenario200Schema = z.lazy(() => apiResponseEnvelopeSchema).and
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const readScenarioErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<ReadScenarioError>
+export const readScenarioErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<ReadScenarioError>
 
 export const readScenarioMutationRequestSchema = z.lazy(() => scenarioReadRequestSchema) as unknown as z.ZodType<ReadScenarioMutationRequest>
 
@@ -869,7 +869,7 @@ export const writeScenario200Schema = z.lazy(() => apiResponseEnvelopeSchema).an
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const writeScenarioErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<WriteScenarioError>
+export const writeScenarioErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<WriteScenarioError>
 
 export const writeScenarioMutationRequestSchema = z.lazy(() => scenarioWriteRequestSchema) as unknown as z.ZodType<WriteScenarioMutationRequest>
 
@@ -878,12 +878,12 @@ export const writeScenarioMutationResponseSchema = z.lazy(() => writeScenario200
 /**
  * @description 删除成功
  */
-export const rmScenario200Schema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<RmScenario200>
+export const rmScenario200Schema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<RmScenario200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const rmScenarioErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<RmScenarioError>
+export const rmScenarioErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<RmScenarioError>
 
 export const rmScenarioMutationRequestSchema = z.lazy(() => scenarioRmRequestSchema) as unknown as z.ZodType<RmScenarioMutationRequest>
 
@@ -901,7 +901,7 @@ export const readCore200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.o
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const readCoreErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<ReadCoreError>
+export const readCoreErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<ReadCoreError>
 
 export const readCoreMutationRequestSchema = z.lazy(() => coreReadRequestSchema) as unknown as z.ZodType<ReadCoreMutationRequest>
 
@@ -919,7 +919,7 @@ export const writeCore200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const writeCoreErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<WriteCoreError>
+export const writeCoreErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<WriteCoreError>
 
 export const writeCoreMutationRequestSchema = z.lazy(() => coreWriteRequestSchema) as unknown as z.ZodType<WriteCoreMutationRequest>
 
@@ -930,14 +930,14 @@ export const writeCoreMutationResponseSchema = z.lazy(() => writeCore200Schema) 
  */
 export const listSkill200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return skillListDataSchema.describe("列表项使用 `SkillSummary`（不含 `content`）。需要 SKILL.md 全文请\n改调 `/skill/get`，避免列表 payload 随 SKILL.md 大小线性放大。\n").optional()
+                return skillListDataSchema.describe("List items use `SkillSummary` without `content`. Call `/skill/get` for full SKILL.md text, avoiding list payload growth proportional to SKILL.md size.\n").optional()
               }
     })) as unknown as z.ZodType<ListSkill200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const listSkillErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<ListSkillError>
+export const listSkillErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<ListSkillError>
 
 export const listSkillMutationRequestSchema = z.lazy(() => skillListRequestSchema) as unknown as z.ZodType<ListSkillMutationRequest>
 
@@ -955,9 +955,9 @@ export const getSkill200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.o
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const getSkillErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<GetSkillError>
+export const getSkillErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<GetSkillError>
 
-export const getSkillMutationRequestSchema = z.lazy(() => skillGetRequestSchema).describe("**只允许按 `skill_id` 单值精确寻址**（与 Memory 数据面寻址\n规则一致；name / file_path 等历史寻址方式已下线）。\n\n本接口**不接受 IdFields**：`team_id` / `agent_id` / `user_id` /\n`task_id` 均不可传入。`skill_id` 全局唯一，归属（team / agent）\n由服务端按 skill 实体内嵌的归属字段解析；调用方所传 `skill_id`\n不在自身可见范围内 → `404`（不暴露存在性）。\n\n`version` 可选：不传返回当前最新版本；传具体版本号（如 `v2`）\n则返回该历史版本快照，未保留该版本时按 `404` 处理。\n") as unknown as z.ZodType<GetSkillMutationRequest>
+export const getSkillMutationRequestSchema = z.lazy(() => skillGetRequestSchema).describe("**Only exact single-value addressing by `skill_id` is supported**, matching Memory data-plane rules; historical name/file_path addressing has been removed.\n\nThis endpoint **does not accept IdFields**: do not pass `team_id`, `agent_id`, `user_id`, or `task_id`. `skill_id` is globally unique; the server resolves team/agent ownership from the Skill entity. A supplied `skill_id` outside the caller's visibility returns `404` without revealing existence.\n\n`version` is optional: omitted returns the latest version; a specific value (such as `v2`) returns that snapshot, or `404` if it is no longer retained.\n") as unknown as z.ZodType<GetSkillMutationRequest>
 
 export const getSkillMutationResponseSchema = z.lazy(() => getSkill200Schema) as unknown as z.ZodType<GetSkillMutationResponse>
 
@@ -966,14 +966,14 @@ export const getSkillMutationResponseSchema = z.lazy(() => getSkill200Schema) as
  */
 export const createSkill200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return skillMutateDataSchema.describe("Skill 写入类操作（create/update）返回的元信息。`skill_id`\n是后续寻址（get/update/delete）的首选键；首次 create 时由\n服务端分配并返回。\n").optional()
+                return skillMutateDataSchema.describe("Metadata from Skill create/update operations. `skill_id` is the preferred key for subsequent get/update/delete calls; the server assigns and returns it on initial creation.\n").optional()
               }
     })) as unknown as z.ZodType<CreateSkill200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const createSkillErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<CreateSkillError>
+export const createSkillErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<CreateSkillError>
 
 export const createSkillMutationRequestSchema = z.lazy(() => skillCreateRequestSchema) as unknown as z.ZodType<CreateSkillMutationRequest>
 
@@ -984,14 +984,14 @@ export const createSkillMutationResponseSchema = z.lazy(() => createSkill200Sche
  */
 export const updateSkill200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return skillMutateDataSchema.describe("Skill 写入类操作（create/update）返回的元信息。`skill_id`\n是后续寻址（get/update/delete）的首选键；首次 create 时由\n服务端分配并返回。\n").optional()
+                return skillMutateDataSchema.describe("Metadata from Skill create/update operations. `skill_id` is the preferred key for subsequent get/update/delete calls; the server assigns and returns it on initial creation.\n").optional()
               }
     })) as unknown as z.ZodType<UpdateSkill200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const updateSkillErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<UpdateSkillError>
+export const updateSkillErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<UpdateSkillError>
 
 export const updateSkillMutationRequestSchema = z.lazy(() => skillUpdateRequestSchema) as unknown as z.ZodType<UpdateSkillMutationRequest>
 
@@ -1000,14 +1000,14 @@ export const updateSkillMutationResponseSchema = z.lazy(() => updateSkill200Sche
 /**
  * @description 删除成功
  */
-export const deleteSkill200Schema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<DeleteSkill200>
+export const deleteSkill200Schema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<DeleteSkill200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const deleteSkillErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<DeleteSkillError>
+export const deleteSkillErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<DeleteSkillError>
 
-export const deleteSkillMutationRequestSchema = z.lazy(() => skillDeleteRequestSchema).describe("批量按 `skill_id` 删除**整个 Skill**：每个 Skill 的 SKILL.md\n`content`、`name`、`description` 以及全部脚本文件\n（`script_paths[]` 指向的）一并失效。软删（status 改为\narchived，可后续治理类接口物理清理）。\n") as unknown as z.ZodType<DeleteSkillMutationRequest>
+export const deleteSkillMutationRequestSchema = z.lazy(() => skillDeleteRequestSchema).describe("Batch-delete **entire Skills** by `skill_id`: SKILL.md `content`, `name`, `description`, and all scripts referenced by `script_paths[]` become invalid. Soft deletion sets status to archived; governance endpoints may physically delete later.\n") as unknown as z.ZodType<DeleteSkillMutationRequest>
 
 export const deleteSkillMutationResponseSchema = z.lazy(() => deleteSkill200Schema) as unknown as z.ZodType<DeleteSkillMutationResponse>
 
@@ -1023,7 +1023,7 @@ export const searchSkill200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const searchSkillErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<SearchSkillError>
+export const searchSkillErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<SearchSkillError>
 
 export const searchSkillMutationRequestSchema = z.lazy(() => skillSearchRequestSchema) as unknown as z.ZodType<SearchSkillMutationRequest>
 
@@ -1034,14 +1034,14 @@ export const searchSkillMutationResponseSchema = z.lazy(() => searchSkill200Sche
  */
 export const importSkill200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return skillImportDataSchema.describe("抽取响应。服务端固定落库为 `status=draft`，等待审核\n（对齐 PRD §16）。\n").optional()
+                return skillImportDataSchema.describe("Extraction response. Server always persists `status=draft`, awaiting review (PRD §16).\n").optional()
               }
     })) as unknown as z.ZodType<ImportSkill200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const importSkillErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<ImportSkillError>
+export const importSkillErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<ImportSkillError>
 
 export const importSkillMutationRequestSchema = z.lazy(() => skillImportRequestSchema) as unknown as z.ZodType<ImportSkillMutationRequest>
 
@@ -1052,14 +1052,14 @@ export const importSkillMutationResponseSchema = z.lazy(() => importSkill200Sche
  */
 export const createTeam200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return teamDataSchema.describe("团队主表（PRD §15.1 teams），并在 `/team/get` 响应里回填该团队\n当前的成员/资产 id 集合（`user_ids` / `agent_ids` / `task_ids`），\n作为 4 实体反向归属的唯一查询入口（替代被砍掉的 list 接口）。\n").optional()
+                return teamDataSchema.describe("Team master record (PRD §15.1 teams). `/team/get` fills current member/asset ID sets (`user_ids`, `agent_ids`, `task_ids`) as the sole reverse-membership lookup for the four entities, replacing removed list endpoints.\n").optional()
               }
     })) as unknown as z.ZodType<CreateTeam200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const createTeamErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<CreateTeamError>
+export const createTeamErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<CreateTeamError>
 
 export const createTeamMutationRequestSchema = z.lazy(() => teamCreateRequestSchema) as unknown as z.ZodType<CreateTeamMutationRequest>
 
@@ -1070,14 +1070,14 @@ export const createTeamMutationResponseSchema = z.lazy(() => createTeam200Schema
  */
 export const getTeam200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return teamDataSchema.describe("团队主表（PRD §15.1 teams），并在 `/team/get` 响应里回填该团队\n当前的成员/资产 id 集合（`user_ids` / `agent_ids` / `task_ids`），\n作为 4 实体反向归属的唯一查询入口（替代被砍掉的 list 接口）。\n").optional()
+                return teamDataSchema.describe("Team master record (PRD §15.1 teams). `/team/get` fills current member/asset ID sets (`user_ids`, `agent_ids`, `task_ids`) as the sole reverse-membership lookup for the four entities, replacing removed list endpoints.\n").optional()
               }
     })) as unknown as z.ZodType<GetTeam200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const getTeamErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<GetTeamError>
+export const getTeamErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<GetTeamError>
 
 export const getTeamMutationRequestSchema = z.lazy(() => teamGetRequestSchema) as unknown as z.ZodType<GetTeamMutationRequest>
 
@@ -1088,16 +1088,16 @@ export const getTeamMutationResponseSchema = z.lazy(() => getTeam200Schema) as u
  */
 export const updateTeam200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return teamDataSchema.describe("团队主表（PRD §15.1 teams），并在 `/team/get` 响应里回填该团队\n当前的成员/资产 id 集合（`user_ids` / `agent_ids` / `task_ids`），\n作为 4 实体反向归属的唯一查询入口（替代被砍掉的 list 接口）。\n").optional()
+                return teamDataSchema.describe("Team master record (PRD §15.1 teams). `/team/get` fills current member/asset ID sets (`user_ids`, `agent_ids`, `task_ids`) as the sole reverse-membership lookup for the four entities, replacing removed list endpoints.\n").optional()
               }
     })) as unknown as z.ZodType<UpdateTeam200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const updateTeamErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<UpdateTeamError>
+export const updateTeamErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<UpdateTeamError>
 
-export const updateTeamMutationRequestSchema = z.lazy(() => teamUpdateRequestSchema).describe("PATCH 语义，仅更新传入字段。`user_ids` / `agent_ids` 为 Team↔User\n与 Team↔Agent 多对多关系的**写权威字段**：传入则整体替换该 Team\n当前关联集合，不传则保持不变，传空数组表示清空（owner 永远保留\n在 `user_ids` 内，移除 owner 须先 `owner_user_id` 转移）。\n") as unknown as z.ZodType<UpdateTeamMutationRequest>
+export const updateTeamMutationRequestSchema = z.lazy(() => teamUpdateRequestSchema).describe("PATCH semantics: only supplied fields change. `user_ids` / `agent_ids` are **authoritative write fields** for Team↔User and Team↔Agent many-to-many relationships. Supplied replaces the team's set, omitted preserves it, empty clears it (owner always remains in user_ids; transfer owner_user_id before removing the old owner).\n") as unknown as z.ZodType<UpdateTeamMutationRequest>
 
 export const updateTeamMutationResponseSchema = z.lazy(() => updateTeam200Schema) as unknown as z.ZodType<UpdateTeamMutationResponse>
 
@@ -1106,14 +1106,14 @@ export const updateTeamMutationResponseSchema = z.lazy(() => updateTeam200Schema
  */
 export const deleteTeam200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return batchDeleteResultSchema.describe("批量软删的结果，部分成功语义：成功的 id 进入 `deleted_ids`，\n其余进入 `failed`，每条带 `id` 与 `reason`（鉴权 / 不存在 / 状态不可删 等）。\n外层 envelope 仍返回 200；调用方需检查 `failed` 是否为空。\n").optional()
+                return batchDeleteResultSchema.describe("Batch soft-delete result with partial success: successful IDs go into `deleted_ids`; others go into `failed`, each with `id` and `reason` (authorization, missing resource, undeletable status, etc.). The outer envelope still returns 200; callers must check whether `failed` is empty.\n").optional()
               }
     })) as unknown as z.ZodType<DeleteTeam200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const deleteTeamErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<DeleteTeamError>
+export const deleteTeamErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<DeleteTeamError>
 
 export const deleteTeamMutationRequestSchema = z.lazy(() => teamBatchDeleteRequestSchema) as unknown as z.ZodType<DeleteTeamMutationRequest>
 
@@ -1124,16 +1124,16 @@ export const deleteTeamMutationResponseSchema = z.lazy(() => deleteTeam200Schema
  */
 export const createUser200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return userDataSchema.describe("用户主表（PRD §15.2 users）。User 自身只承载身份信息（name /\njob_description / status）；与 Team / Task / Agent 的所有关联\n**写路径都在对方侧**（Team 由 `TeamUpdateRequest.user_ids` 维护\n成员、`TeamCreateRequest.owner_user_id` 写入首位 owner；Agent 写\n`owner_user_id`；Task 写 `creator_user_id`）。此处的 `team_ids` /\n`task_ids` / `owned_agent_ids` / `task_agent_ids` 均为**只读反查\n视图**，仅 `/user/get` 保证回填；create/update 响应可能为空数组\n或缺省。\n").optional()
+                return userDataSchema.describe("User master record (PRD §15.2 users). User contains only identity fields (name / job_description / status). **All relationship writes are on the other entity**: Team membership via TeamUpdateRequest.user_ids and initial owner via TeamCreateRequest.owner_user_id; Agent via owner_user_id; Task via creator_user_id. team_ids / task_ids / owned_agent_ids / task_agent_ids here are **read-only reverse views**, guaranteed only by `/user/get`; create/update may omit them or return empty arrays.\n").optional()
               }
     })) as unknown as z.ZodType<CreateUser200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const createUserErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<CreateUserError>
+export const createUserErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<CreateUserError>
 
-export const createUserMutationRequestSchema = z.lazy(() => userCreateRequestSchema).describe("创建 user。仅承载身份信息；跨实体关联不在这里写——加入 Team\n通过 team 侧 owner 关系派生，关联 Agent 通过 `AgentCreateRequest\n.owner_user_id`，关联 Task 通过 `TaskCreateRequest.creator_user_id`\n/ `TaskCreateRequest.user_ids`。\n") as unknown as z.ZodType<CreateUserMutationRequest>
+export const createUserMutationRequestSchema = z.lazy(() => userCreateRequestSchema).describe("Create a user with identity information only. Cross-entity relationships are written elsewhere: Team membership is derived from team-side ownership, Agent association through AgentCreateRequest.owner_user_id, and Task association through TaskCreateRequest.creator_user_id / TaskCreateRequest.user_ids.\n") as unknown as z.ZodType<CreateUserMutationRequest>
 
 export const createUserMutationResponseSchema = z.lazy(() => createUser200Schema) as unknown as z.ZodType<CreateUserMutationResponse>
 
@@ -1142,14 +1142,14 @@ export const createUserMutationResponseSchema = z.lazy(() => createUser200Schema
  */
 export const getUser200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return userDataSchema.describe("用户主表（PRD §15.2 users）。User 自身只承载身份信息（name /\njob_description / status）；与 Team / Task / Agent 的所有关联\n**写路径都在对方侧**（Team 由 `TeamUpdateRequest.user_ids` 维护\n成员、`TeamCreateRequest.owner_user_id` 写入首位 owner；Agent 写\n`owner_user_id`；Task 写 `creator_user_id`）。此处的 `team_ids` /\n`task_ids` / `owned_agent_ids` / `task_agent_ids` 均为**只读反查\n视图**，仅 `/user/get` 保证回填；create/update 响应可能为空数组\n或缺省。\n").optional()
+                return userDataSchema.describe("User master record (PRD §15.2 users). User contains only identity fields (name / job_description / status). **All relationship writes are on the other entity**: Team membership via TeamUpdateRequest.user_ids and initial owner via TeamCreateRequest.owner_user_id; Agent via owner_user_id; Task via creator_user_id. team_ids / task_ids / owned_agent_ids / task_agent_ids here are **read-only reverse views**, guaranteed only by `/user/get`; create/update may omit them or return empty arrays.\n").optional()
               }
     })) as unknown as z.ZodType<GetUser200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const getUserErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<GetUserError>
+export const getUserErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<GetUserError>
 
 export const getUserMutationRequestSchema = z.lazy(() => userGetRequestSchema) as unknown as z.ZodType<GetUserMutationRequest>
 
@@ -1160,16 +1160,16 @@ export const getUserMutationResponseSchema = z.lazy(() => getUser200Schema) as u
  */
 export const updateUser200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return userDataSchema.describe("用户主表（PRD §15.2 users）。User 自身只承载身份信息（name /\njob_description / status）；与 Team / Task / Agent 的所有关联\n**写路径都在对方侧**（Team 由 `TeamUpdateRequest.user_ids` 维护\n成员、`TeamCreateRequest.owner_user_id` 写入首位 owner；Agent 写\n`owner_user_id`；Task 写 `creator_user_id`）。此处的 `team_ids` /\n`task_ids` / `owned_agent_ids` / `task_agent_ids` 均为**只读反查\n视图**，仅 `/user/get` 保证回填；create/update 响应可能为空数组\n或缺省。\n").optional()
+                return userDataSchema.describe("User master record (PRD §15.2 users). User contains only identity fields (name / job_description / status). **All relationship writes are on the other entity**: Team membership via TeamUpdateRequest.user_ids and initial owner via TeamCreateRequest.owner_user_id; Agent via owner_user_id; Task via creator_user_id. team_ids / task_ids / owned_agent_ids / task_agent_ids here are **read-only reverse views**, guaranteed only by `/user/get`; create/update may omit them or return empty arrays.\n").optional()
               }
     })) as unknown as z.ZodType<UpdateUser200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const updateUserErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<UpdateUserError>
+export const updateUserErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<UpdateUserError>
 
-export const updateUserMutationRequestSchema = z.lazy(() => userUpdateRequestSchema).describe("PATCH 语义，仅更新传入字段。跨实体关联同 `UserCreateRequest`，\n全部由对方侧承载，user 侧不接受关联写入。\n") as unknown as z.ZodType<UpdateUserMutationRequest>
+export const updateUserMutationRequestSchema = z.lazy(() => userUpdateRequestSchema).describe("PATCH semantics: update only supplied fields. As with UserCreateRequest, all cross-entity relationships are maintained on the other side; user endpoints reject relationship writes.\n") as unknown as z.ZodType<UpdateUserMutationRequest>
 
 export const updateUserMutationResponseSchema = z.lazy(() => updateUser200Schema) as unknown as z.ZodType<UpdateUserMutationResponse>
 
@@ -1178,14 +1178,14 @@ export const updateUserMutationResponseSchema = z.lazy(() => updateUser200Schema
  */
 export const deleteUser200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return batchDeleteResultSchema.describe("批量软删的结果，部分成功语义：成功的 id 进入 `deleted_ids`，\n其余进入 `failed`，每条带 `id` 与 `reason`（鉴权 / 不存在 / 状态不可删 等）。\n外层 envelope 仍返回 200；调用方需检查 `failed` 是否为空。\n").optional()
+                return batchDeleteResultSchema.describe("Batch soft-delete result with partial success: successful IDs go into `deleted_ids`; others go into `failed`, each with `id` and `reason` (authorization, missing resource, undeletable status, etc.). The outer envelope still returns 200; callers must check whether `failed` is empty.\n").optional()
               }
     })) as unknown as z.ZodType<DeleteUser200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const deleteUserErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<DeleteUserError>
+export const deleteUserErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<DeleteUserError>
 
 export const deleteUserMutationRequestSchema = z.lazy(() => userBatchDeleteRequestSchema) as unknown as z.ZodType<DeleteUserMutationRequest>
 
@@ -1196,14 +1196,14 @@ export const deleteUserMutationResponseSchema = z.lazy(() => deleteUser200Schema
  */
 export const createAgent200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return agentDataSchema.describe("Agent 主表（PRD §15.4 agents）。`agent_id` 全局唯一、不可变；\n与 `team_id` 组成**复合唯一键** `(team_id, agent_id)`，即同一\n`agent_id` 不会出现在两个 `team_id` 下。\n").optional()
+                return agentDataSchema.describe("Agent master record (PRD §15.4 agents). agent_id is globally unique and immutable; with team_id it forms the **unique composite key** `(team_id, agent_id)`, so the same agent_id cannot occur under two team_ids.\n").optional()
               }
     })) as unknown as z.ZodType<CreateAgent200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const createAgentErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<CreateAgentError>
+export const createAgentErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<CreateAgentError>
 
 export const createAgentMutationRequestSchema = z.lazy(() => agentCreateRequestSchema) as unknown as z.ZodType<CreateAgentMutationRequest>
 
@@ -1214,16 +1214,16 @@ export const createAgentMutationResponseSchema = z.lazy(() => createAgent200Sche
  */
 export const getAgent200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return agentDataSchema.describe("Agent 主表（PRD §15.4 agents）。`agent_id` 全局唯一、不可变；\n与 `team_id` 组成**复合唯一键** `(team_id, agent_id)`，即同一\n`agent_id` 不会出现在两个 `team_id` 下。\n").optional()
+                return agentDataSchema.describe("Agent master record (PRD §15.4 agents). agent_id is globally unique and immutable; with team_id it forms the **unique composite key** `(team_id, agent_id)`, so the same agent_id cannot occur under two team_ids.\n").optional()
               }
     })) as unknown as z.ZodType<GetAgent200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const getAgentErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<GetAgentError>
+export const getAgentErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<GetAgentError>
 
-export const getAgentMutationRequestSchema = z.lazy(() => agentGetRequestSchema).describe("以 `agent_id` 全局唯一寻址。客户端可**可选**额外传 `team_id`\n以触发 `(team_id, agent_id)` 复合键一致性校验（不可见 → 404；\n可见但不匹配 → 403，规则同 `info.description`）。\n") as unknown as z.ZodType<GetAgentMutationRequest>
+export const getAgentMutationRequestSchema = z.lazy(() => agentGetRequestSchema).describe("Address by globally unique agent_id. Clients may **optionally** also provide team_id to validate `(team_id, agent_id)` consistency (invisible → 404; visible but mismatched → 403, as in info.description).\n") as unknown as z.ZodType<GetAgentMutationRequest>
 
 export const getAgentMutationResponseSchema = z.lazy(() => getAgent200Schema) as unknown as z.ZodType<GetAgentMutationResponse>
 
@@ -1232,16 +1232,16 @@ export const getAgentMutationResponseSchema = z.lazy(() => getAgent200Schema) as
  */
 export const updateAgent200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return agentDataSchema.describe("Agent 主表（PRD §15.4 agents）。`agent_id` 全局唯一、不可变；\n与 `team_id` 组成**复合唯一键** `(team_id, agent_id)`，即同一\n`agent_id` 不会出现在两个 `team_id` 下。\n").optional()
+                return agentDataSchema.describe("Agent master record (PRD §15.4 agents). agent_id is globally unique and immutable; with team_id it forms the **unique composite key** `(team_id, agent_id)`, so the same agent_id cannot occur under two team_ids.\n").optional()
               }
     })) as unknown as z.ZodType<UpdateAgent200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const updateAgentErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<UpdateAgentError>
+export const updateAgentErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<UpdateAgentError>
 
-export const updateAgentMutationRequestSchema = z.lazy(() => agentUpdateRequestSchema).describe("PATCH 语义，仅更新传入字段。\n客户端可**可选**额外传 `team_id` 触发 `(team_id, agent_id)`\n复合键一致性校验（语义同 `AgentGetRequest`）。\n注意：`team_id` 不可作为更新目标（Agent 归属 team 不可变）；\n若与 `agent_id` 实际归属不一致按 403 处理。\n") as unknown as z.ZodType<UpdateAgentMutationRequest>
+export const updateAgentMutationRequestSchema = z.lazy(() => agentUpdateRequestSchema).describe("PATCH semantics: update only supplied fields. Clients may **optionally** also supply team_id to validate `(team_id, agent_id)` consistency, as in AgentGetRequest. team_id cannot be updated (Agent team ownership is immutable); mismatch with actual ownership returns 403.\n") as unknown as z.ZodType<UpdateAgentMutationRequest>
 
 export const updateAgentMutationResponseSchema = z.lazy(() => updateAgent200Schema) as unknown as z.ZodType<UpdateAgentMutationResponse>
 
@@ -1250,14 +1250,14 @@ export const updateAgentMutationResponseSchema = z.lazy(() => updateAgent200Sche
  */
 export const deleteAgent200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return batchDeleteResultSchema.describe("批量软删的结果，部分成功语义：成功的 id 进入 `deleted_ids`，\n其余进入 `failed`，每条带 `id` 与 `reason`（鉴权 / 不存在 / 状态不可删 等）。\n外层 envelope 仍返回 200；调用方需检查 `failed` 是否为空。\n").optional()
+                return batchDeleteResultSchema.describe("Batch soft-delete result with partial success: successful IDs go into `deleted_ids`; others go into `failed`, each with `id` and `reason` (authorization, missing resource, undeletable status, etc.). The outer envelope still returns 200; callers must check whether `failed` is empty.\n").optional()
               }
     })) as unknown as z.ZodType<DeleteAgent200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const deleteAgentErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<DeleteAgentError>
+export const deleteAgentErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<DeleteAgentError>
 
 export const deleteAgentMutationRequestSchema = z.lazy(() => agentBatchDeleteRequestSchema) as unknown as z.ZodType<DeleteAgentMutationRequest>
 
@@ -1268,14 +1268,14 @@ export const deleteAgentMutationResponseSchema = z.lazy(() => deleteAgent200Sche
  */
 export const createTask200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return taskDataSchema.describe("Task 主表（PRD §15.5 tasks），含关联 Agent 与参与 User 列表。\nTask 是 User↔Task 与 Agent↔Task 两组多对多关系的**写权威侧**。\n").optional()
+                return taskDataSchema.describe("Task master record (PRD §15.5 tasks), including associated Agents and participating Users. Task is the **authoritative write side** for User↔Task and Agent↔Task many-to-many relationships.\n").optional()
               }
     })) as unknown as z.ZodType<CreateTask200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const createTaskErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<CreateTaskError>
+export const createTaskErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<CreateTaskError>
 
 export const createTaskMutationRequestSchema = z.lazy(() => taskCreateRequestSchema) as unknown as z.ZodType<CreateTaskMutationRequest>
 
@@ -1286,14 +1286,14 @@ export const createTaskMutationResponseSchema = z.lazy(() => createTask200Schema
  */
 export const getTask200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return taskDataSchema.describe("Task 主表（PRD §15.5 tasks），含关联 Agent 与参与 User 列表。\nTask 是 User↔Task 与 Agent↔Task 两组多对多关系的**写权威侧**。\n").optional()
+                return taskDataSchema.describe("Task master record (PRD §15.5 tasks), including associated Agents and participating Users. Task is the **authoritative write side** for User↔Task and Agent↔Task many-to-many relationships.\n").optional()
               }
     })) as unknown as z.ZodType<GetTask200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const getTaskErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<GetTaskError>
+export const getTaskErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<GetTaskError>
 
 export const getTaskMutationRequestSchema = z.lazy(() => taskGetRequestSchema) as unknown as z.ZodType<GetTaskMutationRequest>
 
@@ -1304,16 +1304,16 @@ export const getTaskMutationResponseSchema = z.lazy(() => getTask200Schema) as u
  */
 export const updateTask200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return taskDataSchema.describe("Task 主表（PRD §15.5 tasks），含关联 Agent 与参与 User 列表。\nTask 是 User↔Task 与 Agent↔Task 两组多对多关系的**写权威侧**。\n").optional()
+                return taskDataSchema.describe("Task master record (PRD §15.5 tasks), including associated Agents and participating Users. Task is the **authoritative write side** for User↔Task and Agent↔Task many-to-many relationships.\n").optional()
               }
     })) as unknown as z.ZodType<UpdateTask200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const updateTaskErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<UpdateTaskError>
+export const updateTaskErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<UpdateTaskError>
 
-export const updateTaskMutationRequestSchema = z.lazy(() => taskUpdateRequestSchema).describe("PATCH 语义，仅更新传入字段。`team_id` 与 `creator_user_id` **不\n可改**（请求体不接受这两个字段）；如需变更归属请走删除重建。\n") as unknown as z.ZodType<UpdateTaskMutationRequest>
+export const updateTaskMutationRequestSchema = z.lazy(() => taskUpdateRequestSchema).describe("PATCH semantics: update only supplied fields. team_id and creator_user_id are **immutable** and rejected in the request body; delete and recreate to change ownership.\n") as unknown as z.ZodType<UpdateTaskMutationRequest>
 
 export const updateTaskMutationResponseSchema = z.lazy(() => updateTask200Schema) as unknown as z.ZodType<UpdateTaskMutationResponse>
 
@@ -1322,14 +1322,14 @@ export const updateTaskMutationResponseSchema = z.lazy(() => updateTask200Schema
  */
 export const deleteTask200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return batchDeleteResultSchema.describe("批量软删的结果，部分成功语义：成功的 id 进入 `deleted_ids`，\n其余进入 `failed`，每条带 `id` 与 `reason`（鉴权 / 不存在 / 状态不可删 等）。\n外层 envelope 仍返回 200；调用方需检查 `failed` 是否为空。\n").optional()
+                return batchDeleteResultSchema.describe("Batch soft-delete result with partial success: successful IDs go into `deleted_ids`; others go into `failed`, each with `id` and `reason` (authorization, missing resource, undeletable status, etc.). The outer envelope still returns 200; callers must check whether `failed` is empty.\n").optional()
               }
     })) as unknown as z.ZodType<DeleteTask200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const deleteTaskErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<DeleteTaskError>
+export const deleteTaskErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<DeleteTaskError>
 
 export const deleteTaskMutationRequestSchema = z.lazy(() => taskBatchDeleteRequestSchema) as unknown as z.ZodType<DeleteTaskMutationRequest>
 
@@ -1347,7 +1347,7 @@ export const listWiki200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.o
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const listWikiErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<ListWikiError>
+export const listWikiErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<ListWikiError>
 
 export const listWikiMutationRequestSchema = z.lazy(() => wikiListRequestSchema) as unknown as z.ZodType<ListWikiMutationRequest>
 
@@ -1358,14 +1358,14 @@ export const listWikiMutationResponseSchema = z.lazy(() => listWiki200Schema) as
  */
 export const createWiki200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return assetMutateDataSchema.describe("通用资产变更返回。`asset_id` 为全局唯一、不可变 id，按资产类型\n前缀区分：Skill=`skl-`，LLM-Wiki=`wiki-`，Code-Graph=`cg-`。\n具体接口语义上等价于 `skill_id` / `wiki_id` / `code_graph_id`。\n").optional()
+                return assetMutateDataSchema.describe("Generic asset mutation response. `asset_id` is globally unique and immutable, with type prefixes: Skill=`skl-`, LLM-Wiki=`wiki-`, Code-Graph=`cg-`. Semantically equivalent to `skill_id` / `wiki_id` / `code_graph_id` for the respective endpoints.\n").optional()
               }
     })) as unknown as z.ZodType<CreateWiki200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const createWikiErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<CreateWikiError>
+export const createWikiErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<CreateWikiError>
 
 export const createWikiMutationRequestSchema = z.lazy(() => wikiCreateRequestSchema) as unknown as z.ZodType<CreateWikiMutationRequest>
 
@@ -1383,7 +1383,7 @@ export const updateWiki200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const updateWikiErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<UpdateWikiError>
+export const updateWikiErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<UpdateWikiError>
 
 export const updateWikiMutationRequestSchema = z.lazy(() => wikiUpdateRequestSchema) as unknown as z.ZodType<UpdateWikiMutationRequest>
 
@@ -1392,12 +1392,12 @@ export const updateWikiMutationResponseSchema = z.lazy(() => updateWiki200Schema
 /**
  * @description 删除成功
  */
-export const deleteWiki200Schema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<DeleteWiki200>
+export const deleteWiki200Schema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<DeleteWiki200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const deleteWikiErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<DeleteWikiError>
+export const deleteWikiErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<DeleteWikiError>
 
 export const deleteWikiMutationRequestSchema = z.lazy(() => wikiDeleteRequestSchema) as unknown as z.ZodType<DeleteWikiMutationRequest>
 
@@ -1415,7 +1415,7 @@ export const searchWiki200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const searchWikiErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<SearchWikiError>
+export const searchWikiErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<SearchWikiError>
 
 export const searchWikiMutationRequestSchema = z.lazy(() => assetSearchRequestSchema) as unknown as z.ZodType<SearchWikiMutationRequest>
 
@@ -1433,7 +1433,7 @@ export const listCodeGraph200Schema = z.lazy(() => apiResponseEnvelopeSchema).an
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const listCodeGraphErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<ListCodeGraphError>
+export const listCodeGraphErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<ListCodeGraphError>
 
 export const listCodeGraphMutationRequestSchema = z.lazy(() => codeGraphListRequestSchema) as unknown as z.ZodType<ListCodeGraphMutationRequest>
 
@@ -1444,14 +1444,14 @@ export const listCodeGraphMutationResponseSchema = z.lazy(() => listCodeGraph200
  */
 export const createCodeGraph200Schema = z.lazy(() => apiResponseEnvelopeSchema).and(z.object({
     get "data"(){
-                return assetMutateDataSchema.describe("通用资产变更返回。`asset_id` 为全局唯一、不可变 id，按资产类型\n前缀区分：Skill=`skl-`，LLM-Wiki=`wiki-`，Code-Graph=`cg-`。\n具体接口语义上等价于 `skill_id` / `wiki_id` / `code_graph_id`。\n").optional()
+                return assetMutateDataSchema.describe("Generic asset mutation response. `asset_id` is globally unique and immutable, with type prefixes: Skill=`skl-`, LLM-Wiki=`wiki-`, Code-Graph=`cg-`. Semantically equivalent to `skill_id` / `wiki_id` / `code_graph_id` for the respective endpoints.\n").optional()
               }
     })) as unknown as z.ZodType<CreateCodeGraph200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const createCodeGraphErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<CreateCodeGraphError>
+export const createCodeGraphErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<CreateCodeGraphError>
 
 export const createCodeGraphMutationRequestSchema = z.lazy(() => codeGraphCreateRequestSchema) as unknown as z.ZodType<CreateCodeGraphMutationRequest>
 
@@ -1460,12 +1460,12 @@ export const createCodeGraphMutationResponseSchema = z.lazy(() => createCodeGrap
 /**
  * @description 受理成功
  */
-export const syncCodeGraph200Schema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<SyncCodeGraph200>
+export const syncCodeGraph200Schema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<SyncCodeGraph200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const syncCodeGraphErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<SyncCodeGraphError>
+export const syncCodeGraphErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<SyncCodeGraphError>
 
 export const syncCodeGraphMutationRequestSchema = z.lazy(() => codeGraphSyncRequestSchema) as unknown as z.ZodType<SyncCodeGraphMutationRequest>
 
@@ -1474,12 +1474,12 @@ export const syncCodeGraphMutationResponseSchema = z.lazy(() => syncCodeGraph200
 /**
  * @description 删除成功
  */
-export const deleteCodeGraph200Schema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<DeleteCodeGraph200>
+export const deleteCodeGraph200Schema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<DeleteCodeGraph200>
 
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const deleteCodeGraphErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<DeleteCodeGraphError>
+export const deleteCodeGraphErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<DeleteCodeGraphError>
 
 export const deleteCodeGraphMutationRequestSchema = z.lazy(() => codeGraphDeleteRequestSchema) as unknown as z.ZodType<DeleteCodeGraphMutationRequest>
 
@@ -1497,7 +1497,7 @@ export const searchCodeGraph200Schema = z.lazy(() => apiResponseEnvelopeSchema).
 /**
  * @description 业务错误（HTTP 200/4xx/5xx 均可能返回）
  */
-export const searchCodeGraphErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("统一响应外壳。`code = 0` 表示成功；非 0 表示业务错误。\n常见业务错误语义：\n  - `400`：参数不合法（如关键 ID 缺失、互斥字段同时出现、空入参等）；\n  - `401`：鉴权失败；\n  - `403`：**全接口统一**——多个业务字段均可见但归属一致性校验\n    失败（如 `(team_id, agent_id)` 不构成有效 Agent 归属、\n    `task_id` 不属于 `team_id`、`(task_id, agent_id) ∉\n    task_agents`、`creator_user_id` 不是该 team 成员等）；\n    写审计日志；\n  - `404`：资源不存在或不属于当前调用上下文（记忆原子层 / 资产层 /\n    实体 CRUD 一律按 404，与 offload.yaml 同契约，不暴露存在性）；\n  - `409`：会话级 / 资产级并发竞争超时；\n  - `422`：Schema 校验通过但业务规则不通过（如 Skill 重名 / 版本冲突）；\n  - `429`：频控触发；\n  - `500`：内部错误，可有限重试；\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`：依赖不可用；\n  - `504`：请求超时。\n") as unknown as z.ZodType<SearchCodeGraphError>
+export const searchCodeGraphErrorSchema = z.lazy(() => apiResponseEnvelopeSchema).describe("Unified response envelope. `code = 0` means success; nonzero codes indicate business errors.\nCommon business errors:\n  - `400`: invalid parameters (missing key IDs, mutually exclusive fields, empty input, etc.);\n  - `401`: authentication failed;\n  - `403`: **consistent across all endpoints** — multiple business fields are visible but their ownership is inconsistent (e.g. invalid `(team_id, agent_id)` ownership, `task_id` not belonging to `team_id`, `(task_id, agent_id) ∉ task_agents`, or `creator_user_id` not a team member); an audit entry is written;\n  - `404`: resource missing or outside the current calling context (memory atomic layer, asset layer, and entity CRUD all use 404, matching offload.yaml without revealing existence);\n  - `409`: session/asset concurrency contention timed out;\n  - `422`: schema validation passed but business rules failed (such as duplicate Skill names or version conflicts);\n  - `429`: rate limit exceeded;\n  - `500`: internal error; limited retries allowed;\n  - `503-LLM_UNAVAILABLE` / `503-STORAGE_UNAVAILABLE`: dependency unavailable;\n  - `504`: request timed out.\n") as unknown as z.ZodType<SearchCodeGraphError>
 
 export const searchCodeGraphMutationRequestSchema = z.lazy(() => assetSearchRequestSchema) as unknown as z.ZodType<SearchCodeGraphMutationRequest>
 

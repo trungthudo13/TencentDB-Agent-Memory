@@ -21,7 +21,7 @@ const VDB_URL = process.env.VDB_URL;
 const VDB_API_KEY = process.env.VDB_API_KEY;
 
 if (!VDB_URL || !VDB_API_KEY) {
-  console.error("需要环境变量 VDB_URL / VDB_API_KEY");
+  console.error("VDB_URL / VDB_API_KEY environment variables are required");
   process.exit(2);
 }
 
@@ -61,23 +61,23 @@ async function main() {
   const dbs = dbResp.databases ?? [];
   const targets = dbs.filter(isDeletable);
 
-  console.log(`库总数: ${dbs.length}`);
-  console.log(`匹配 "${ALLOWED_PREFIX}*" 且未被保护: ${targets.length} 个`);
+  console.log(`Total databases: ${dbs.length}`);
+  console.log(`Matching "${ALLOWED_PREFIX}*" and not protected: ${targets.length} items`);
 
   if (targets.length === 0) {
-    console.log("没有可清理的库，退出。");
+    console.log("No databases to clean up. Exiting.");
     return;
   }
 
   if (!CONFIRMED) {
-    console.log("\n[DRY-RUN] 以下库将被删除（加 --confirm 才真正执行）:");
+    console.log("\n[DRY-RUN] The following databases would be deleted (add --confirm to execute):");
     for (const db of targets.slice(0, 20)) console.log(`  ${db}`);
-    if (targets.length > 20) console.log(`  ... 以及另外 ${targets.length - 20} 个`);
-    console.log(`\n合计 ${targets.length} 个库。未执行任何删除。`);
+    if (targets.length > 20) console.log(`  ... and another ${targets.length - 20} items`);
+    console.log(`\nTotal ${targets.length} databases. No deletions performed.`);
     return;
   }
 
-  console.log(`\n开始删除 ${targets.length} 个库...`);
+  console.log(`\nDeleting ${targets.length} databases...`);
   let ok = 0;
   const failed: Array<{ db: string; err: string }> = [];
 
@@ -90,15 +90,15 @@ async function main() {
     try {
       await client.dropDatabase(db);
       ok++;
-      if ((i + 1) % 50 === 0) console.log(`  进度 ${i + 1}/${targets.length}`);
+      if ((i + 1) % 50 === 0) console.log(`  Progress ${i + 1}/${targets.length}`);
     } catch (err) {
       failed.push({ db, err: err instanceof Error ? err.message : String(err) });
     }
   }
 
-  console.log(`\n完成: 成功 ${ok}，失败 ${failed.length}`);
+  console.log(`\nComplete: Success ${ok}, failed ${failed.length}`);
   if (failed.length) {
-    console.log("失败明细（前 10 条）:");
+    console.log("Failure details (first 10):");
     for (const f of failed.slice(0, 10)) console.log(`  ${f.db}: ${f.err}`);
   }
 }

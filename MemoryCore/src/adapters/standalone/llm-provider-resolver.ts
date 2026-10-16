@@ -39,12 +39,12 @@ export function resolveStandaloneLlmForRuntime(
 
   if (!llm.baseUrl) {
     throw new LlmProviderResolveError(
-      "llm.provider=proxy 需要 llm.baseUrl 指向 context_proxy 根 URL",
+      "llm.provider=proxy requires llm.baseUrl to point to the context_proxy root URL",
     );
   }
   if (!instanceId || !instanceId.trim()) {
     throw new LlmProviderResolveError(
-      "llm.provider=proxy 需要非空 instanceId，无法拼出 /proxy/<iid>/v1 路径",
+      "llm.provider=proxy requires a nonempty instanceId to construct the /proxy/<iid>/v1 path",
     );
   }
 
@@ -54,13 +54,13 @@ export function resolveStandaloneLlmForRuntime(
     const envKey = process.env.TDAI_MEMORY_SYSTEM_USER_KEY?.trim();
     if (!envKey) {
       throw new LlmProviderResolveError(
-        "llm.provider=proxy 需要 memory 系统用户 key —— " +
-        "请在 yaml metadata.systemUser.memory 或 env TDAI_MEMORY_SYSTEM_USER_KEY 配置",
+        "llm.provider=proxy requires a memory system user key — " +
+        "configure yaml metadata.systemUser.memory or env TDAI_MEMORY_SYSTEM_USER_KEY",
       );
     }
     if (!MEMORY_USER_KEY_RE.test(envKey)) {
       throw new LlmProviderResolveError(
-        "memory 系统用户 key 必须匹配 sk-mem-[A-Za-z0-9_-]{32}",
+        "memory system user key must match sk-mem-[A-Za-z0-9_-]{32}",
       );
     }
     effectiveApiKey = envKey;
@@ -68,7 +68,7 @@ export function resolveStandaloneLlmForRuntime(
 
   if (!effectiveApiKey) {
     throw new LlmProviderResolveError(
-      "llm.provider=proxy 且 useMemorySystemUserKey=false 时必须显式 llm.apiKey",
+      "llm.provider=proxy with useMemorySystemUserKey=false requires an explicit llm.apiKey",
     );
   }
 

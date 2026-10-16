@@ -90,15 +90,15 @@ if git rev-parse --show-toplevel >/dev/null 2>&1 && [[ -n "$final" ]]; then
 fi
 
 if [[ -n "$final" ]]; then
-  echo "❌ secret-scan: 命中可能的敏感信息（$(echo "$final" | wc -l | tr -d ' ') 处）"
+  echo "❌ secret-scan: Potential sensitive information found ($(echo "$final" | wc -l | tr -d ' ') matches)"
   echo
   echo "$final"
   echo
   # 提示只指向 PLACEHOLDER：EXEMPT_PATH 会放过整条路径（同文件真 secret 一起漏网），
   # 行内注释豁免则要改上游源码（污染他人模块 + 下游 rebase 反复冲突），两者都不推荐。
-  echo "如果确认是误报，把该具体字符串加进脚本顶部的 PLACEHOLDER 白名单（值级豁免）"
+  echo "For confirmed false positives, add the exact string to the PLACEHOLDER allowlist at the top of the script (value-level exemption)."
   exit 1
 fi
 
-echo "✓ secret-scan: 未发现敏感信息（扫描目标：${TARGETS[*]}）"
+echo "✓ secret-scan: No sensitive information found (scan targets: ${TARGETS[*]})"
 exit 0

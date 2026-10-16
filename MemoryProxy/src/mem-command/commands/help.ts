@@ -5,69 +5,69 @@
 import type { MemCommandContext, MemCommandResult } from "../types.js";
 import { buildMemResponse } from "../response-builder.js";
 
-const HELP_TEXT = `## 支持的 mem: 命令
+const HELP_TEXT = `## Supported mem: commands
 
-| 命令 | 说明 |
-|------|------|
-| \`mem:session-reset\` | 重置本次会话的团队/Agent/任务绑定，立即弹出重新选择 |
-| \`mem:sync\` | 刷新本次会话的全部资产注入（Skill / 记忆 / Knowledge / Task & Agent 描述） |
-| \`mem:create-skill [提示词]\` | 把本次对话归档为 Skill，后台异步提取 |
-| \`mem:create-task [标题]\` | 从当前会话上下文创建 Task 并绑定到本 session |
-| \`mem:update-task [新描述]\` | 更新已绑定 Task 的描述 |
-| \`mem:help\` | 显示本帮助 |
-
----
-
-### 🆕 \`mem:create-task\` — 创建并绑定 Task
-
-**用法**
-- **无参数**：LLM 从最近对话中推断 title + description
-- **有参数**：参数作为 title（40 字截断），LLM 只生成 description
-
-**若本 session 已绑真实 Task**，返回新 Task 预览，回复以下之一：
-
-| 回复 | 效果 |
-|------|------|
-| \`mem:create-task confirm\` | ✅ 覆盖绑定，创建新 Task |
-| \`mem:update-task\` 或 \`mem:update-task <新描述>\` | ⭐ **推荐** — 继续复用当前 Task，只更新描述 |
-| \`mem:create-task cancel\` | 🚫 取消，不做任何改动 |
+| Command | Description |
+|---------|-------------|
+| \`mem:session-reset\` | Reset this session's Team/Agent/Task links and reopen selection |
+| \`mem:sync\` | Refresh all asset injections (Skill / Memory / Knowledge / Task & Agent descriptions) |
+| \`mem:create-skill [prompt]\` | Archive this conversation as a Skill for asynchronous background extraction |
+| \`mem:create-task [title]\` | Create a Task from this conversation and link it to this session |
+| \`mem:update-task [new description]\` | Update the linked Task's description |
+| \`mem:help\` | Show this help |
 
 ---
 
-### ✏️ \`mem:update-task\` — 更新当前 Task 描述
+### 🆕 \`mem:create-task\` — Create and link a Task
 
-**用法**
-- **无参数**：LLM 对比 "当前 description + 最近对话" 生成新 description
-  - 判无实质改动 → 返回 ℹ️ 无需更新（幂等，可安全重试）
-  - 判有改动 → 返回预览
-- **有参数**：参数直接作为新 description（不调 LLM），返回预览
+**Usage**
+- **Without arguments**: The LLM infers a title and description from recent conversation.
+- **With arguments**: The argument becomes the title (truncated to 40 characters); the LLM generates only the description.
 
-**确认预览**：
-- ✅ \`mem:update-task confirm\` — 确认
-- 🚫 \`mem:update-task cancel\` — 取消
+**If this session already has a real Task**, a new Task preview is returned. Reply with one of:
 
-**保护规则**：
-- 若本 session 未绑 Task → 拦截并提示先执行 \`mem:create-task\`
-- 若绑定的 Task 不是你创建的 → 拒绝更新（不支持跨用户改），建议 \`mem:create-task\` 新建一个属于你的
+| Reply | Result |
+|-------|--------|
+| \`mem:create-task confirm\` | ✅ Replace the link and create a new Task |
+| \`mem:update-task\` or \`mem:update-task <new description>\` | ⭐ **Recommended** — Reuse the current Task and update only its description |
+| \`mem:create-task cancel\` | 🚫 Cancel without changes |
 
 ---
 
-### 示例
+### ✏️ \`mem:update-task\` — Update the current Task description
+
+**Usage**
+- **Without arguments**: The LLM compares the current description with recent conversation to generate a new description.
+  - No meaningful changes → ℹ️ No update needed (idempotent; safe to retry).
+  - Changes found → Return a preview.
+- **With arguments**: Use the argument directly as the new description (without an LLM call) and return a preview.
+
+**Confirm the preview**:
+- ✅ \`mem:update-task confirm\` — Confirm
+- 🚫 \`mem:update-task cancel\` — Cancel
+
+**Safeguards**:
+- No Task linked to this session → Ask you to run \`mem:create-task\` first.
+- You did not create the linked Task → Reject the update (cross-user modification is unsupported); use \`mem:create-task\` to create your own.
+
+---
+
+### Examples
 
 \`\`\`
 mem:sync
-mem:create-skill 重点总结数据库迁移步骤和踩坑
-mem:create-task 重构 SessionRegistrar
+mem:create-skill Summarize database migration steps and pitfalls
+mem:create-task Refactor SessionRegistrar
 mem:create-task confirm
 mem:create-task cancel
-mem:update-task 补充今天完成的进度与遗留风险
+mem:update-task Add today's progress and remaining risks
 mem:update-task confirm
 mem:update-task cancel
 mem:session-reset
 mem:help
 \`\`\`
 
-> 标准格式为 \`mem:<command>\`，冒号后不加空格。命令名大小写不敏感。`;
+> Use \`mem:<command>\` with no space after the colon. Command names are case-insensitive.`;
 
 export function getHelpText(): string {
   return HELP_TEXT;

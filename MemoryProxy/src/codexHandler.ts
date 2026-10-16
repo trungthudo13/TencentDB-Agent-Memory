@@ -582,11 +582,11 @@ export async function handleCodexEndpoint(
         // 但 codex 客户端不在 Plan 模式无法弹 form → 措辞需要 明确告知
         // "reset 命令需要 Plan 模式" 而非笼统的"资产功能不启用"。
         const gateText = (initResult as any).resetFlow
-          ? "⚠️ mem:session-reset 需要 Plan 模式支持。\n\n"
-            + "codex 客户端当前不在 Plan 模式，无法弹出资产选择表单。\n"
-            + "请切到 Plan 模式后再执行 mem:session-reset。"
-          : "检测到未开启 Plan 模式，本次对话不开启团队资产相关功能（Skill / Task / Agent 不参与）。"
-            + "如需使用，请切到 Plan 模式后重新开启新会话。";
+          ? "⚠️ mem:session-reset requires Plan mode.\n\n"
+            + "codex is not in Plan mode and cannot display the asset selection form.\n"
+            + "Switch to Plan mode, then run mem:session-reset again."
+          : "Plan mode is disabled. Team asset features (Skill / Task / Agent) are disabled for this conversation."
+            + "To use these features, switch to Plan mode and start a new session.";
         return buildMemResponse(gateText, {
           protocol: "responses",
           stream: isStream,
@@ -683,7 +683,7 @@ export async function handleCodexEndpoint(
       // 记录 resetFlow 到外层供块外返回确认响应
       if (initResult.resetFlow && initResult.justRegistered && !initResult.bypassed) {
         _resetFlowResult = {
-          agentName: initResult.agentDetail?.name ?? "未知",
+          agentName: initResult.agentDetail?.name ?? "Unknown",
           // agentIdShort 字段名沿用历史，但此处**存完整 agent_id**（如 agt-1celthr7yn）。
           // 之前 slice(-8) 会截断成 "elthr7yn" 用户看不懂，与 team 截断问题对称。
           agentIdShort: (initResult.sessionInfo as Record<string, unknown>)?.agent_id
@@ -711,15 +711,15 @@ export async function handleCodexEndpoint(
         ? `- **Team**: ${teamId}`
         : null;
     const lines = bypassed
-      ? ["✅ 已跳过团队资产关联", "", "后续对话不注入任何团队资产（Skill / 记忆 / Knowledge）。"]
+      ? ["✅ Team asset linking skipped", "", "No team assets (Skill / Memory / Knowledge) will be injected into subsequent conversation turns."]
       : [
-          "✅ 已重新绑定团队资产",
+          "✅ Team assets relinked",
           "",
           `- **Agent**: ${agentName}${agentIdShort ? ` (${agentIdShort})` : ""}`,
           teamLine,
-          taskName ? `- **Task**: ${taskName}` : "- **Task**: 未关联",
+          taskName ? `- **Task**: ${taskName}` : "- **Task**: Not linked",
           "",
-          "后续对话将使用新 Agent 的 Skill、记忆和知识资产。",
+          "Subsequent conversation turns will use the new Agent's skills, memories, and knowledge assets.",
         ].filter(Boolean);
     const text = (lines as string[]).join("\n");
 
@@ -750,7 +750,7 @@ export async function handleCodexEndpoint(
       if (memCmd) {
         // Session not initialized → command not available
         if (!sessionInfo || injectionSkipped) {
-          const errText = `⚠️ 会话未初始化，命令不可用。请先完成 session 初始化（选择 Team/Agent）后重试。`;
+          const errText = `⚠️ Command unavailable: session not initialized. Complete session initialization (select Team/Agent), then retry.`;
           const errResponse = buildMemResponse(errText, {
             protocol: "responses",
             stream: isStream,

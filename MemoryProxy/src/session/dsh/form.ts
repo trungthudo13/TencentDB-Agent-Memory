@@ -50,13 +50,13 @@ import type { TeamOption } from "../types.js";
 export const TOOL_NAME = "ask_user_question";
 export const TOOLCALL_PREFIX = "call_dsh_session_init_";
 
-export const TEAM_FORM_TITLE = "会话初始化 — 选择 Team";
-export const AGENT_TASK_FORM_TITLE = "会话初始化 — 选择 Agent 与任务";
-export const RETRY_FORM_TITLE = "未能识别选择,请重新选择";
+export const TEAM_FORM_TITLE = "Session initialization — Select Team";
+export const AGENT_TASK_FORM_TITLE = "Session initialization — Select Agent and Task";
+export const RETRY_FORM_TITLE = "Selection not recognized. Please select again";
 
-export const SKIP_LABEL = "本次不关联(跳过注入,直接放行)";
+export const SKIP_LABEL = "Skip linking (continue without injection)";
 // dsh 不分页,MORE_LABEL 保留仅作向后兼容(测试或未来切分页时用);当前不产出。
-export const MORE_LABEL = "更多 →";
+export const MORE_LABEL = "More →";
 
 /**
  * fake tool_call assistant 消息的占位 reasoning_content。
@@ -78,9 +78,9 @@ export const MORE_LABEL = "更多 →";
  */
 const REASONING_PLACEHOLDER = "[proxy session-init form]";
 
-export const ASSET_CONFIRM_YES = "是,关联团队资产";
-export const ASSET_CONFIRM_NO = "否,本次不关联";
-export const ASSET_CONFIRM_FORM_TITLE = "会话初始化 — 是否关联团队资产";
+export const ASSET_CONFIRM_YES = "Yes, link team assets";
+export const ASSET_CONFIRM_NO = "No, skip linking";
+export const ASSET_CONFIRM_FORM_TITLE = "Session initialization — Link team assets";
 
 /**
  * 附在每步 question 文末的通用备注。
@@ -88,7 +88,7 @@ export const ASSET_CONFIRM_FORM_TITLE = "会话初始化 — 是否关联团队�
  * `custom` 字段）；回复"跳过 / skip / 不关联"会走 SKIP_RE bypass。
  * 文案与 claude-code/workbuddy/codex/codebuddy 五端统一。
  */
-const SKIP_HINT = '（请选择最匹配的选项，当前暂不支持自定义输入。若选择跳过，本次 Session 将不注入团队资产）';
+const SKIP_HINT = '(Select the closest option; custom input is currently unsupported. Skipping disables team asset injection for this session.)';
 
 /** Returns true if the given string contains any dsh form title marker. */
 export function containsFormTitle(s: string): boolean {
@@ -146,11 +146,11 @@ function buildAskUserQuestionArgs(data: FormData): { questions: DshAskQuestion[]
   if (stage === "asset_confirm") {
     questions.push({
       id: "asset_confirm",
-      question: titlePrefix + "本次对话是否要关联团队资产?" + SKIP_HINT,
-      header: "关联资产",
+      question: titlePrefix + "Link team assets to this conversation?" + SKIP_HINT,
+      header: "Link assets",
       options: [
-        { label: ASSET_CONFIRM_YES, description: "选择 Team / Agent / Task,注入团队上下文" },
-        { label: ASSET_CONFIRM_NO, description: "本次不注入任何内容,直接放行" },
+        { label: ASSET_CONFIRM_YES, description: "Select Team / Agent / Task to inject team context" },
+        { label: ASSET_CONFIRM_NO, description: "Continue without injecting any content" },
       ],
       multi_select: false,
     });
@@ -171,7 +171,7 @@ function buildAskUserQuestionArgs(data: FormData): { questions: DshAskQuestion[]
     }
     questions.push({
       id: "team_select",
-      question: titlePrefix + "请选择本次会话所属的 Team:" + SKIP_HINT,
+      question: titlePrefix + "Select the Team for this session:" + SKIP_HINT,
       header: "Team",
       options: teamOpts,
       multi_select: false,
@@ -198,7 +198,7 @@ function buildAskUserQuestionArgs(data: FormData): { questions: DshAskQuestion[]
 
     questions.push({
       id: "agent_select",
-      question: titlePrefix + `请选择「${team.team_name}」下要使用的 Agent:` + SKIP_HINT,
+      question: titlePrefix + `Select an Agent in ${team.team_name}:` + SKIP_HINT,
       header: "Agent",
       options: combinedOptions,
       multi_select: false,
@@ -226,7 +226,7 @@ function buildAskUserQuestionArgs(data: FormData): { questions: DshAskQuestion[]
 
     questions.push({
       id: "task_select",
-      question: titlePrefix + `请选择「${team.team_name}」下要关联的任务:` + SKIP_HINT,
+      question: titlePrefix + `Select a Task to link in ${team.team_name}:` + SKIP_HINT,
       header: "Task",
       options: taskOpts,
       multi_select: false,

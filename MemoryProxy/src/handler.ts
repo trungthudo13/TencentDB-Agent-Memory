@@ -786,12 +786,12 @@ export async function handleChatCompletions(
       const { buildMemResponse } = await import("./mem-command/response-builder.js");
       console.log(`[mem-command:pre] session-reset unsupported for agent=${agentSource} dshHeadless=${_dshHeadless}`);
       const msg = _headerOnlyAgents.has(agentSource)
-        ? `⚠️ mem:session-reset 不支持 ${agentSource} 客户端。\n\n`
-          + `${agentSource} 通过 x-team-id / x-agent-id / x-task-id 请求头预选身份，没有交互式表单入口。\n`
-          + `请在客户端配置中直接更改这些请求头来切换 Team / Agent / Task。`
-        : "⚠️ mem:session-reset 不支持 dsh headless 模式。\n\n"
-          + "dsh 客户端在 headless / no-preset 场景下不挂 ask_user_question tool，无法弹出资产选择表单。\n"
-          + "请在带 ask_user_question preset 的 dsh 环境下使用。";
+        ? `⚠️ mem:session-reset is not supported by the ${agentSource} client.\n\n`
+          + `${agentSource} preselects identity via x-team-id / x-agent-id / x-task-id headers and has no interactive form.\n`
+          + `Change these headers in the client configuration to switch Team / Agent / Task.`
+        : "⚠️ mem:session-reset is not supported in dsh headless mode.\n\n"
+          + "The dsh client does not expose ask_user_question in headless / no-preset mode and cannot display the asset selection form.\n"
+          + "Use a dsh environment with the ask_user_question preset.";
       return buildMemResponse(msg, {
         protocol: "openai",
         stream: isStream,
@@ -1099,7 +1099,7 @@ export async function handleChatCompletions(
       // 记录 resetFlow 信息到外层，session-init 块结束后用于返回确认响应
       if (initResult.resetFlow && initResult.justRegistered && !initResult.bypassed) {
         _resetFlowResult = {
-          agentName: initResult.agentDetail?.name ?? "未知",
+          agentName: initResult.agentDetail?.name ?? "Unknown",
           // agentIdShort 字段名沿用历史，但此处**存完整 agent_id**（如 agt-1celthr7yn）。
           // 之前 slice(-8) 只留后 8 位会显示成 "elthr7yn" 这种截断串，用户完全看不懂，
           // 与 team 截断问题同源。agent id 本身就短，全量展示无害且更可读。
@@ -1132,15 +1132,15 @@ export async function handleChatCompletions(
         ? `- **Team**: ${teamId}`
         : null;
     const lines = bypassed
-      ? ["✅ 已跳过团队资产关联", "", "后续对话不注入任何团队资产（Skill / 记忆 / Knowledge）。"]
+      ? ["✅ Team asset linking skipped", "", "No team assets (Skill / Memory / Knowledge) will be injected into subsequent conversation turns."]
       : [
-          "✅ 已重新绑定团队资产",
+          "✅ Team assets relinked",
           "",
           `- **Agent**: ${agentName}${agentIdShort ? ` (${agentIdShort})` : ""}`,
           teamLine,
-          taskName ? `- **Task**: ${taskName}` : "- **Task**: 未关联",
+          taskName ? `- **Task**: ${taskName}` : "- **Task**: Not linked",
           "",
-          "后续对话将使用新 Agent 的 Skill、记忆和知识资产。",
+          "Subsequent conversation turns will use the new Agent's skills, memories, and knowledge assets.",
         ].filter(Boolean);
     const text = (lines as string[]).join("\n");
 
@@ -1182,7 +1182,7 @@ export async function handleChatCompletions(
     if (memCmd) {
       // 会话未初始化时，命令不可用（同 anthropic 侧提示）
       if (!sessionInfo || injectedSkipped) {
-        const errText = `⚠️ 会话未初始化，命令不可用。请先完成 session 初始化（选择 Team/Agent）后重试。`;
+        const errText = `⚠️ Command unavailable: session not initialized. Complete session initialization (select Team/Agent), then retry.`;
         const errResponse = buildMemResponse(errText, {
           protocol: "openai",
           stream: isStream,

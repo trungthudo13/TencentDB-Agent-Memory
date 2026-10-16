@@ -6,43 +6,43 @@
 
 // ─── System Prompt ───────────────────────────────────────────────────────────
 
-export const L2_SYSTEM_PROMPT = `你是一个究极实用主义的 AI 任务拓扑架构师与视觉叙事者。
-你的核心逻辑是用尽量少的字符表达尽量多的信息，让LLM模型能看懂，不是为人类服务，尽量减少无用的视觉符号。任务是将底层工具调用记录，升维映射为一张高度语义化、表现力丰富且极度克制的 Mermaid (flowchart TD) 认知状态机。你要根据当前任务和意图，归纳"过去"，要思考"未来"如何用这些已有的信息（你只需要记录已有信息，不需要写下一步规划）并标记"雷区"。保持图表的高度概括性。
+export const L2_SYSTEM_PROMPT = `You are a pragmatic AI task-topology architect and visual narrator.
+Express maximum information in minimum characters for LLM comprehension, minimizing unnecessary visual symbols. Transform tool-call records into a highly semantic, expressive, restrained Mermaid (flowchart TD) cognitive state machine. Summarize the past according to the current task and intent, consider how existing information may help later (record only existing information, not future plans), and flag pitfalls. Keep the graph high-level.
 
-【高阶认知与拓扑指南（你的自主权与极简原则）】
-1. 弹性聚合：你拥有决定节点拆合的完全自主权。对于连续的、意图相同的常规动作（如连续查看多个文件以了解上下文），建议合并为一个宏观节点；，但保留关键转折点或重大发现为独立节点。图表必须保持宏观和克制，绝不事无巨细地记流水账。
-2. 认知墓碑 (防重蹈覆辙)：遇到彻底走不通的死胡同或引发严重报错的废弃方案，可以建立警示节点（status: blocked）（如果是价值不高的fail信息则不需要记录）。
-3. 结论导向的摘要：节点的 summary（注意：尽量小于150字）应聚焦于"得出了什么结论"或"发生了什么实质改变"，而非罗列琐碎的数据或参数，记得保持极简原则。
-4. 要实事求是，你的任务是记录并归纳已经发生的事情，不是规划未来的具体操作，未发生的节点不要写，记录的已发生节点要有对应的消息来源（对应标注node_id）。
-【符号即语义：高维认知字典（你的核心武器）】为了极致压缩 Token 并为你下一步推理提供"认知锚点"，请自由使用不同的mmd形状来代表不同的节点逻辑。让形状替你说话，省略冗余的文字描述。
+[Cognition and topology: autonomy and minimalism]
+1. Flexible aggregation: freely merge or split nodes. Combine consecutive routine actions with the same intent (such as reading files for context) into a high-level node, but preserve key turning points and major discoveries as separate nodes. Avoid a detailed activity log.
+2. Warning markers: use warning nodes (status: blocked) for dead ends or abandoned approaches that caused serious errors. Omit low-value failures.
+3. Conclusion-oriented summaries: keep summary under 150 characters where possible, emphasizing conclusions or material changes rather than trivial data or parameters.
+4. Record and summarize facts that have already occurred, not future actions. Every recorded node must have corresponding source messages (identified by node_id).
+[Shapes convey meaning] Use different Mermaid shapes for different node semantics to compress tokens and provide reasoning anchors. Let shapes replace redundant descriptions.
 
-【高度自由的拓扑与极简法则】
-1. 语义浓缩：既然形状已经表达了"领域"，你的 summary 必须极其精简（≤150字），如"发现死锁"、"依赖冲突"、"已修复"。
-2. 弹性拓扑：自主使用带标签的连线（-->|测试失败|）和虚线（-.->|参考|）来构建"依赖树"和"假设验证环"。不要记流水账。
-3. 动态更新 (Token 极简)：
-   - replace (增量微调)：仅修改现有节点的状态、时间戳、短文本或追加极少节点时。
-   - write (全量重写)：逻辑大洗牌、重构图表或初始化时。
-注意：Existing Mermaid content 中每行开头都带有行号标记（如 "L1: ..."），这些行号仅供你在 replace 模式中引用，不是 MMD 内容的一部分。
+[Flexible topology and minimalism]
+1. Semantic compression: shapes convey the domain, so summaries must be concise (≤150 characters), such as "Deadlock found", "Dependency conflict", or "Fixed".
+2. Flexible topology: use labeled edges (-->|Test failed|) and dotted edges (-.->|Reference|) to build dependency trees and hypothesis-validation loops. Avoid chronological logs.
+3. Dynamic updates (minimal tokens):
+   - replace (incremental): change existing node status, timestamps, short text, or add very few nodes.
+   - write (full rewrite): major logic changes, restructuring, or initialization.
+Note: line-number markers in Existing Mermaid content (such as "L1: ...") are references for replace mode, not part of the MMD content.
 
-【严格的工程底线】
-1.节点标准格式：NodeID["阶段名: 宏观动作简述<br/>status: done|doing|paused|blocked <br/>summary: 核心结论摘要<br/>Timestamp: ISO8601"]
-2. 全员归宿映射：输入的每一个新 tool_call_id，都必须在 node_mapping 中被分配到一个 Node ID；MMD里的每一个node都应该有源头的tool_call消息来源，不能乱编，绝对不允许遗漏！（Node_id和tool_call_id是一对多的关系）
-3. 你可以通过各种整合方法，尽量把更新后mmd文件大小控制在4000字以内
+[Strict engineering requirements]
+1. Standard node format: NodeID["Stage name: high-level action<br/>status: done|doing|paused|blocked <br/>summary: key conclusion<br/>Timestamp: ISO8601"]
+2. Complete source mapping: assign every new input tool_call_id to a Node ID in node_mapping. Every MMD node must have source tool_call messages. Never invent or omit sources. Node_id to tool_call_id is one-to-many.
+3. Use aggregation to keep the updated MMD file within 4000 characters where possible.
 
-【严格时间戳与元数据规则】
-1. 顶部元数据（必填）：%%{ "taskGoal": "一句话总结此次任务的目标（可动态更新）", "progress（0-100）": "进度百分比（严格点，几乎确认完成再打到90+)", createdTime": "ISO时间", "updatedTime": "ISO时间" }%%（updatedTime为node中的最新时间）。
-2. 节点内时间：如果合并了多个新条目，节点内的 Timestamp 必须取其中最新的 ISO 时间。
+[Strict timestamp and metadata rules]
+1. Required top metadata: %%{ "taskGoal": "One-sentence task goal (may be updated)", "progress（0-100）": "Progress percentage (be strict; use 90+ only when nearly certain of completion)", createdTime": "ISO time", "updatedTime": "ISO time" }%%. updatedTime is the latest node timestamp.
+2. When merging multiple new entries, use the latest ISO timestamp for the node.
 
-【严格 JSON 输出格式】
-务必正确转义双引号。所有 Mermaid 代码（无论是 mmd_content 还是 replace_blocks 中的 content）都必须用 \`\`\`mermaid ... \`\`\` 代码块包裹起来。必须输出如下 JSON 结构：
+[Strict JSON output format]
+Escape double quotes correctly. Wrap all Mermaid code (both mmd_content and content in replace_blocks) in \`\`\`mermaid ... \`\`\` fences. Output this JSON structure:
 {
-  "file_action": "replace 或 write",
-  "mmd_content": "完整的、带转义的 .mmd 代码，必须用 \`\`\`mermaid ... \`\`\` 包裹。（仅在 file_action 为 write 时填写，否则必须设为 null）",
+  "file_action": "replace or write",
+  "mmd_content": "Complete escaped .mmd code wrapped in \`\`\`mermaid ... \`\`\`. Fill only for file_action=write; otherwise null.",
   "replace_blocks": [
     {
-      "start_line": "需要更新范围的起始行号（整数，对应 Existing Mermaid content 中的 L 标号）",
-      "end_line": "需要更新范围的结束行号（整数，包含该行）。要在某行之前插入新内容而不删除任何行，将 start_line 设为该行号，end_line 设为 start_line - 1",
-      "content": "替换后的新内容（不需要带行号前缀），必须用 \`\`\`mermaid ... \`\`\` 包裹"
+      "start_line": "First line number to update (integer matching the L markers in Existing Mermaid content)",
+      "end_line": "Last line number to update (inclusive integer). To insert before a line without deleting, set start_line to that line and end_line to start_line - 1",
+      "content": "Replacement content without line-number prefixes, wrapped in \`\`\`mermaid ... \`\`\`"
     }
   ],
   "node_mapping": {
@@ -51,7 +51,7 @@ export const L2_SYSTEM_PROMPT = `你是一个究极实用主义的 AI 任务拓�
   }
 }
 
-仅输出纯 JSON 对象，绝不允许包含任何解释。`;
+Output only the JSON object, without explanations.`;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -82,26 +82,26 @@ export function buildL2UserPrompt(opts: {
 
   // History section
   if (recentHistory) {
-    parts.push(`## 近期对话历史：\n${recentHistory}`);
+    parts.push(`## Recent conversation history:\n${recentHistory}`);
   } else {
-    parts.push("## 近期对话历史：\n(无可用历史)");
+    parts.push("## Recent conversation history:\n(No history available)");
   }
 
   if (currentTurn) {
-    parts.push(`\n## 当前最新一轮：\n${currentTurn}`);
+    parts.push(`\n## Latest turn:\n${currentTurn}`);
   }
 
   parts.push(`\n## MMD prefix: ${mmdPrefix}`);
-  parts.push(`（所有节点 ID 必须以此前缀开头，如 ${mmdPrefix}-N1, ${mmdPrefix}-N2...）`);
+  parts.push(`(All node IDs must begin with this prefix, such as ${mmdPrefix}-N1, ${mmdPrefix}-N2...)`);
   parts.push(`\n## Current task label: ${taskLabel}`);
 
   // Char count warning
   if (charCount > 2500) {
     parts.push(`\n## Current MMD size: ${charCount} chars (budget: 4000 chars)`);
-    parts.push("⚠ 接近上限，请积极合并节点、精简 summary，优先使用 replace 模式微调而非 write 全量重写。");
+    parts.push("⚠ Near the limit: merge nodes and shorten summaries. Prefer incremental replace updates over full write rewrites.");
   } else if (charCount > 2000) {
     parts.push(`\n## Current MMD size: ${charCount} chars (budget: 4000 chars)`);
-    parts.push("注意控制增长，合并同类节点。");
+    parts.push("Limit growth by merging similar nodes.");
   }
 
   // Existing MMD with line numbers
@@ -122,6 +122,6 @@ export function buildL2UserPrompt(opts: {
     parts.push(`${i + 1}. [${e.toolCallId}] ${e.toolCall} → ${e.summary} (${e.timestamp})`);
   }
 
-  parts.push("\n请根据系统指令生成/更新 Mermaid 流程图，并输出合法的 JSON 对象（含 node_mapping）。");
+  parts.push("\nGenerate/update the Mermaid flowchart according to the system instructions and output a valid JSON object including node_mapping.");
   return parts.join("\n");
 }

@@ -53,9 +53,9 @@ class Sink:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--bypass", action="store_true", help="asset_confirm 选'否'走 bypass 路径")
-    ap.add_argument("--prompt", default="1+1=?", help="首条 user 消息")
-    ap.add_argument("--cwd", default="/tmp", help="启动目录（需已 trusted）")
+    ap.add_argument("--bypass", action="store_true", help="Select 'No' on asset_confirm to take the bypass path")
+    ap.add_argument("--prompt", default="1+1=?", help="First user message")
+    ap.add_argument("--cwd", default="/tmp", help="Working directory (must be trusted)")
     ap.add_argument("--log", default="/tmp/codex-tui-smoke.log")
     args = ap.parse_args()
 
@@ -78,7 +78,7 @@ def main():
     try:
         child.expect(rb"directory:", timeout=20)
     except pexpect.TIMEOUT:
-        print("\n[FAIL] TUI 未就绪", file=sys.stderr)
+        print("\n[FAIL] TUI not ready", file=sys.stderr)
         return 1
 
     time.sleep(1.5)
@@ -89,7 +89,7 @@ def main():
     #
     # codex TUI composer: 打字 → 再单独按 Enter 提交。sendline 里的 \n 会跟
     # 文字一起送进输入框但不触发提交，所以拆两步 (send 文字 → sleep → 单独 Enter)。
-    print(f"\n=== [STEP 1] 发首条消息: {args.prompt} ===")
+    print(f"\n=== [STEP 1] Send first message: {args.prompt} ===")
     child.send(args.prompt)
     time.sleep(1.5)
     child.send("\r")  # Enter 提交
@@ -97,12 +97,12 @@ def main():
     # 等 asset_confirm form —— 匹配中文"是否关联"或英文关键字
     try:
         child.expect(
-            rb"\xe6\x98\xaf\xe5\x90\xa6\xe5\x85\xb3\xe8\x81\x94|\xe5\x85\xb3\xe8\x81\x94\xe5\x9b\xa2\xe9\x98\x9f\xe8\xb5\x84\xe4\xba\xa7|asset_confirm|Question",
+            rb"Link team assets|\xe6\x98\xaf\xe5\x90\xa6\xe5\x85\xb3\xe8\x81\x94|\xe5\x85\xb3\xe8\x81\x94\xe5\x9b\xa2\xe9\x98\x9f\xe8\xb5\x84\xe4\xba\xa7|asset_confirm|Question",
             timeout=45,
         )
-        print("\n=== [STEP 2] asset_confirm form 出现 ✓ ===")
+        print("\n=== [STEP 2] asset_confirm form appeared ✓ ===")
     except pexpect.TIMEOUT:
-        print("\n[FAIL] 首帧未见 asset_confirm form (45s)", file=sys.stderr)
+        print("\n[FAIL] Initial asset_confirm form not seen (45s)", file=sys.stderr)
         child.terminate(force=True)
         return 1
 
@@ -112,12 +112,12 @@ def main():
     # codex 每个 form 首选就是第 1 项 (是/关联)，Down 一次到第 2 项 (否/bypass)。
     # 用 \r 而非 sendline 提交，避免把 \n 也解读成额外的 Down。
     if args.bypass:
-        print("\n=== [STEP 3] 选 '否，本次不关联' → Down + Enter ===")
+        print("\n=== [STEP 3] Select 'No, skip linking' → Down + Enter ===")
         child.send("\x1b[B")  # Down 到第 2 项
         time.sleep(0.8)
         child.send("\r")      # Enter 提交
     else:
-        print("\n=== [STEP 3] 选 '是，关联团队资产' → Enter ===")
+        print("\n=== [STEP 3] Select 'Yes, link team assets' → Enter ===")
         time.sleep(0.8)
         child.send("\r")
 
@@ -127,15 +127,15 @@ def main():
             try:
                 i = child.expect(
                     [
-                        rb"Question|\xe8\xaf\xb7\xe9\x80\x89\xe6\x8b\xa9",  # 请选择
+                        rb"Select|Question|\xe8\xaf\xb7\xe9\x80\x89\xe6\x8b\xa9",  # 请选择
                         rb"tokens used|response\.completed|assistant",
                     ],
                     timeout=60,
                 )
                 if i == 1:
-                    print(f"\n=== [STEP {4 + step}] 到达 assistant 首条回复 ===")
+                    print(f"\n=== [STEP {4 + step}] Reached first assistant response ===")
                     break
-                print(f"\n=== [STEP {4 + step}] 下一步 form → Enter ===")
+                print(f"\n=== [STEP {4 + step}] Next form → Enter ===")
                 time.sleep(1)
                 child.send("\r")
             except pexpect.TIMEOUT:
@@ -143,12 +143,12 @@ def main():
                 break
 
     # ── 抓 assistant 首条完整回复 ─────────────────────────────────────
-    print("\n=== [FINAL] 等 assistant 完成（tokens used 出现） ===")
+    print("\n=== [FINAL] Wait for assistant completion (tokens used appears) ===")
     try:
         child.expect(rb"tokens used", timeout=90)
-        print("\n[DONE] assistant 已完成回复 ✓")
+        print("\n[DONE] Assistant response complete ✓")
     except pexpect.TIMEOUT:
-        print("\n[WARN] 90s 未见 tokens used", file=sys.stderr)
+        print("\n[WARN] tokens used not seen within 90s", file=sys.stderr)
 
     time.sleep(2)
     child.sendcontrol("c")
@@ -156,7 +156,7 @@ def main():
     child.sendcontrol("c")
     child.close(force=True)
 
-    print(f"\n\n=== 完整 log 落 {args.log} ===")
+    print(f"\n\n=== Full log saved to {args.log} ===")
     return 0
 
 

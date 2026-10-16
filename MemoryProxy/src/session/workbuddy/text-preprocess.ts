@@ -155,15 +155,15 @@ export function preprocessTextModeInput(
     if (YES_RE.test(text)) {
       return {
         action: "translate",
-        translated: "是，关联团队资产",
-        reason: `yes-keyword → "是，关联团队资产"`,
+        translated: "Yes, link team assets",
+        reason: `yes-keyword → "Yes, link team assets"`,
       };
     }
     if (NO_RE.test(text)) {
       return {
         action: "translate",
-        translated: "否，本次不关联",
-        reason: `no-keyword → "否，本次不关联"`,
+        translated: "No, skip linking",
+        reason: `no-keyword → "No, skip linking"`,
       };
     }
   }
@@ -240,8 +240,8 @@ function resolveNumberToLabel(
     case "asset_confirm": {
       // asset_confirm 只有 2 个固定选项，不分页。extractAssetConfirm 认
       // "是" / "否" / "关联"等关键字，直接返回精确字面串。
-      if (n === 1) return "是，关联团队资产";
-      if (n === 2) return "否，本次不关联";
+      if (n === 1) return "Yes, link team assets";
+      if (n === 2) return "No, skip linking";
       return null;
     }
 

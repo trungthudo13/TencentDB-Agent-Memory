@@ -22,17 +22,17 @@
 # 退出码：
 #   0：通过
 #   1：检测到红线被触碰
-#   2：环境/依赖问题（git 不可用等）
+#   2：环境/依赖问题（git unavailable等）
 
 set -euo pipefail
 
 if [[ "${SKIP_SKILL_QUEUE_ISOLATION:-0}" == "1" ]]; then
-  echo "[skill-queue-isolation] SKIP_SKILL_QUEUE_ISOLATION=1，跳过红线检查（不推荐）"
+  echo "[skill-queue-isolation] SKIP_SKILL_QUEUE_ISOLATION=1; skipping isolation checks (not recommended)"
   exit 0
 fi
 
 if ! command -v git >/dev/null 2>&1; then
-  echo "[skill-queue-isolation] ERROR: git 不可用" >&2
+  echo "[skill-queue-isolation] ERROR: git unavailable" >&2
   exit 2
 fi
 
@@ -44,7 +44,7 @@ if ! git rev-parse --verify --quiet "$BASE_REF" >/dev/null; then
   if git rev-parse --verify --quiet "HEAD~1" >/dev/null; then
     BASE_REF="HEAD~1"
   else
-    echo "[skill-queue-isolation] WARN: 无法定位 BASE_REF=$BASE_REF 也没有 HEAD~1，跳过检查"
+    echo "[skill-queue-isolation] WARN: Cannot resolve BASE_REF=$BASE_REF or HEAD~1; skipping checks"
     exit 0
   fi
 fi
@@ -74,7 +74,7 @@ case "$MODE" in
 esac
 
 if [[ -z "$CHANGED" ]]; then
-  echo "[skill-queue-isolation] 无文件变更，pass"
+  echo "[skill-queue-isolation] No changed files; pass"
   exit 0
 fi
 
@@ -89,7 +89,7 @@ FORBIDDEN_FILES=(
 
 for f in "${FORBIDDEN_FILES[@]}"; do
   if echo "$CHANGED" | grep -qx "$f"; then
-    VIOLATIONS+=("禁止改动文件：$f")
+    VIOLATIONS+=("Changes forbidden in file: $f")
   fi
 done
 
@@ -99,7 +99,7 @@ while IFS= read -r f; do
   case "$f" in
     src/integrations/redis-skill/*) ;;  # 允许
     src/integrations/redis/*)
-      VIOLATIONS+=("禁止改动记忆 Redis 目录：$f")
+      VIOLATIONS+=("Changes forbidden in the memory Redis directory: $f")
       ;;
   esac
 done <<< "$CHANGED"
@@ -115,7 +115,7 @@ if [[ -n "$SKILL_TS_CHANGED" ]]; then
     # 抓 import 语句中的 fs / node:fs / fs/promises
     if grep -nE 'from[[:space:]]+["'"'"']?(node:fs|fs|fs/promises)["'"'"']?' "$f" >/dev/null; then
       MATCH=$(grep -nE 'from[[:space:]]+["'"'"']?(node:fs|fs|fs/promises)["'"'"']?' "$f" | head -3)
-      VIOLATIONS+=("Skill 模块禁止直接 import fs：$f"$'\n'"$MATCH")
+      VIOLATIONS+=("Direct fs imports are forbidden in Skill modules: $f"$'\n'"$MATCH")
     fi
   done <<< "$SKILL_TS_CHANGED"
 fi
@@ -124,14 +124,14 @@ fi
 if [[ ${#VIOLATIONS[@]} -gt 0 ]]; then
   echo ""
   echo "==================================================================="
-  echo "[skill-queue-isolation] FAIL：检测到 ${#VIOLATIONS[@]} 处红线违规"
+  echo "[skill-queue-isolation] FAIL: Detected ${#VIOLATIONS[@]} isolation violations"
   echo "==================================================================="
   for v in "${VIOLATIONS[@]}"; do
     echo "  - $v"
   done
   echo ""
-  echo "如需绕过（仅紧急情况），可设置 SKIP_SKILL_QUEUE_ISOLATION=1，但 reviewer 必须 +2"
-  echo "参考 ADR：docs/design/2026-06-16-skill-extract-queue.md / 2026-06-16-skill-storage-adapter.md"
+  echo "To bypass in emergencies only, set SKIP_SKILL_QUEUE_ISOLATION=1; reviewer +2 approval is required"
+  echo "See ADR: docs/design/2026-06-16-skill-extract-queue.md / 2026-06-16-skill-storage-adapter.md"
   exit 1
 fi
 

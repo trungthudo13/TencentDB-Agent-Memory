@@ -6,27 +6,27 @@
 
 // ─── System Prompt ───────────────────────────────────────────────────────────
 
-export const L1_SYSTEM_PROMPT = `你是一个专为 AI 编码助手提供支持的"工具结果摘要器"。你的核心任务是深度理解当前的对话上下文，并将繁杂的工具调用与执行结果（一对toolcall和tool result整合成一条summary输出），提炼为高信息密度的 JSON 数组。
+export const L1_SYSTEM_PROMPT = `You are a tool-result summarizer for an AI coding assistant. Understand the current conversation deeply and condense complex tool calls and results into a high-density JSON array, with one summary per tool-call/result pair.
 
-在生成摘要前，请务必进行以下内部思考：
-1. 任务对齐：结合最近的对话记录，识别用户当前的核心目标和最新意图。若上下文存在冲突，始终以最新的用户意图为准。
-2. 价值过滤：忽略工具如何工作的冗余细节，直接提取"发现了什么关键线索"、"做了什么关键动作"、"修改了什么具体内容"或"遇到了什么具体报错"。
-3. 影响评估：判断该结果对当前任务的实质性影响（例如：证实了某个假设、推进了哪一步、做出了什么决策，或因为什么报错导致了阻塞）。
+Before summarizing, reason internally about:
+1. Task alignment: identify the user's core goal and latest intent from recent conversation. If context conflicts, follow the latest user intent.
+2. Value filtering: omit redundant implementation details and extract key discoveries, actions, specific changes, and exact errors.
+3. Impact assessment: determine the result's material effect on the task, such as confirming a hypothesis, completing a step, making a decision, or blocking progress with an error.
 
-【输出格式要求】
-你必须且只能输出一个合法的 JSON 对象数组 [{...}]，每个对象**必须**包含以下字段：
-- "tool_call": 工具调用的简洁描述。处理规则如下：
-  · 如果输入中该 tool pair 标记了 [NEEDS_COMPRESS]，你必须将工具名+关键参数压缩为一句简洁的描述（≤150字符），保留工具名、操作目标（如文件路径、命令意图），省略内联脚本/大段内容的细节。
-    示例：exec({"command":"python3 -c 'import csv; ...200行脚本...'"}) → "exec: 运行 Python （xx/xx/xx.sh，标明具体路径和文件）脚本分析 sales_channels.csv 数据质量"
-    示例：write_file({"path":"/root/app.py","content":"...5000字符..."}) → "write_file: 写入 /root/app.py (Flask 应用主文件)，大致内容是……"
-  · 如果未标记 [NEEDS_COMPRESS]，直接简述工具与参数即可（系统会用原始值覆盖）。
-- "summary": 融合上述思考的精炼总结（≤200个字符）。必须一针见血地说清楚结果的业务价值，以及它对任务的推进/阻塞作用。
-- "tool_call_id": 原始的 tool_call_id（必须原样透传）。
-- "timestamp": 原始的中国标准时间（+08:00）ISO 8601 时间戳（必须原样透传）。
-- "score"（**必填**）: 结合信息密度和任务目的分析summary对于原文的可替代性，范围在0-10之间，越接近10表示summary越能替代原文。
+[Output format]
+Output only a valid JSON array of objects [{...}]. Every object MUST contain:
+- "tool_call": a concise description of the tool call, following these rules:
+  · If the pair is marked [NEEDS_COMPRESS], compress the tool name and key parameters into one description (≤150 characters). Preserve the tool name and target (such as file path or command intent); omit inline scripts and large payload details.
+    Example: exec({"command":"python3 -c 'import csv; ...200 lines...'"}) → "exec: run Python script (xx/xx/xx.sh; specify exact path/file) to analyze sales_channels.csv data quality"
+    Example: write_file({"path":"/root/app.py","content":"...5000 characters..."}) → "write_file: write /root/app.py (main Flask application file), containing..."
+  · Without [NEEDS_COMPRESS], briefly describe the tool and parameters (the system will replace this with the original value).
+- "summary": a concise synthesis (≤200 characters). State the result's practical value and how it advances or blocks the task.
+- "tool_call_id": pass through the original tool_call_id unchanged.
+- "timestamp": pass through the original China Standard Time (+08:00) ISO 8601 timestamp unchanged.
+- "score" (REQUIRED): assess how well the summary can replace the original based on information density and task intent, from 0 to 10; higher means a better replacement.
 
-【严格规则】
-只允许输出纯 JSON 数组，严禁输出思考过程或其他解释性文本。`;
+[Strict rules]
+Output only a JSON array, without reasoning or explanatory text.`;
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -53,7 +53,7 @@ export interface L1ToolPair {
 export function buildL1UserPrompt(recentMessages: string, pairs: L1ToolPair[]): string {
   const parts: string[] = [];
 
-  parts.push("## 最近的对话上下文（用于理解当前任务）：");
+  parts.push("## Recent conversation context (to understand the current task):");
   parts.push(recentMessages);
   parts.push("\n## Tool call/result pairs to summarize:");
 

@@ -16,12 +16,12 @@ import { refreshSessionCache, type RefreshResult } from "../../routes/session-re
 
 function buildSuccessMessage(result: RefreshResult): string {
   const parts: string[] = [];
-  parts.push("Skill / 记忆 / Knowledge 资产");
+  parts.push("Skill / Memory / Knowledge assets");
   if (result.agentRefreshed || result.taskRefreshed) {
-    parts.push("Task & Agent 描述");
+    parts.push("Task & Agent descriptions");
   }
-  const scope = parts.join("、");
-  return `✅ 所有资产注入已刷新（${scope}），耗时 ${result.tookMs}ms`;
+  const scope = parts.join(", ");
+  return `✅ All asset injections refreshed (${scope}) in ${result.tookMs}ms`;
 }
 
 export async function executeSync(ctx: MemCommandContext): Promise<MemCommandResult> {
@@ -29,7 +29,7 @@ export async function executeSync(ctx: MemCommandContext): Promise<MemCommandRes
 
   // 未绑定时不走 refreshSessionCache(它会暴露 session key 给用户)
   if (!ctx.sessionInfo || Object.keys(ctx.sessionInfo).length === 0) {
-    const messageText = "⚠️ 当前会话未绑定团队资产，无法同步。请先用 `mem:session-reset` 选择 Team/Agent 后再试。";
+    const messageText = "⚠️ Cannot sync: no team assets are linked to this session. Use `mem:session-reset` to select Team/Agent, then retry.";
     return {
       success: false,
       messageText,
@@ -47,7 +47,7 @@ export async function executeSync(ctx: MemCommandContext): Promise<MemCommandRes
 
   const messageText = result.success
     ? buildSuccessMessage(result)
-    : `❌ 资产刷新失败：${result.error ?? "未知错误"}`;
+    : `❌ Asset refresh failed: ${result.error ?? "Unknown error"}`;
 
   const response = buildMemResponse(messageText, {
     protocol: ctx.protocol,

@@ -53,13 +53,13 @@ export function resolveEffectiveLlmConfig(
   // provider=proxy 的校验
   if (!llm.baseUrl) {
     throw new LlmResolveError(
-      "llm.provider=proxy 需要 llm.baseUrl 指向 context_proxy 根 URL (如 http://127.0.0.1:8096)",
+      "llm.provider=proxy requires llm.baseUrl to point to the context_proxy root URL (for example, http://127.0.0.1:8096)",
     );
   }
   if (!instanceId || !instanceId.trim()) {
     throw new LlmResolveError(
-      "llm.provider=proxy 需要 instanceId，但 core 当前 instanceId 为空 —— " +
-      "service 模式下确保请求带 x-tdai-service-id，standalone 模式下确保 yaml 有 instanceId",
+      "llm.provider=proxy requires instanceId, but core instanceId is empty — " +
+      "in service mode, include x-tdai-service-id in requests; in standalone mode, set instanceId in yaml",
     );
   }
 
@@ -68,13 +68,13 @@ export function resolveEffectiveLlmConfig(
   if (useSystemUserKey) {
     if (!memorySystemUser) {
       throw new LlmResolveError(
-        "llm.provider=proxy 且 llm.proxy.useMemorySystemUserKey=true 需要 " +
-        "metadata.systemUser.memory 完整配置（userId + userKey），当前缺失",
+        "llm.provider=proxy with llm.proxy.useMemorySystemUserKey=true requires " +
+        "complete metadata.systemUser.memory configuration (userId + userKey), which is currently missing",
       );
     }
     if (!isValidMemorySystemUserKey(memorySystemUser.userKey)) {
       throw new LlmResolveError(
-        "metadata.systemUser.memory.userKey 必须匹配 sk-mem-[A-Za-z0-9_-]{32}",
+        "metadata.systemUser.memory.userKey must match sk-mem-[A-Za-z0-9_-]{32}",
       );
     }
     effectiveApiKey = memorySystemUser.userKey;
@@ -82,7 +82,7 @@ export function resolveEffectiveLlmConfig(
 
   if (!effectiveApiKey) {
     throw new LlmResolveError(
-      "llm.provider=proxy 且 useMemorySystemUserKey=false 时必须显式配置 llm.apiKey",
+      "llm.provider=proxy with useMemorySystemUserKey=false requires an explicit llm.apiKey",
     );
   }
 
@@ -110,7 +110,7 @@ export function validateLlmProviderConfig(
 
   if (!llm.baseUrl) {
     throw new LlmResolveError(
-      "llm.provider=proxy 需要 llm.baseUrl 指向 context_proxy 根 URL",
+      "llm.provider=proxy requires llm.baseUrl to point to the context_proxy root URL",
     );
   }
 
@@ -119,18 +119,18 @@ export function validateLlmProviderConfig(
     const memoryUser = resolveMemorySystemUserConfig(metadata);
     if (!memoryUser) {
       throw new LlmResolveError(
-        "llm.provider=proxy 且 useMemorySystemUserKey=true 需要 " +
-        "metadata.systemUser.memory 完整配置（userId + userKey）",
+        "llm.provider=proxy with useMemorySystemUserKey=true requires " +
+        "complete metadata.systemUser.memory configuration (userId + userKey)",
       );
     }
     if (!isValidMemorySystemUserKey(memoryUser.userKey)) {
       throw new LlmResolveError(
-        "metadata.systemUser.memory.userKey 必须匹配 sk-mem-[A-Za-z0-9_-]{32}",
+        "metadata.systemUser.memory.userKey must match sk-mem-[A-Za-z0-9_-]{32}",
       );
     }
   } else if (!llm.apiKey) {
     throw new LlmResolveError(
-      "llm.provider=proxy 且 useMemorySystemUserKey=false 时必须显式配置 llm.apiKey",
+      "llm.provider=proxy with useMemorySystemUserKey=false requires an explicit llm.apiKey",
     );
   }
 }
