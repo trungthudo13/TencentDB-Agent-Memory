@@ -1,0 +1,72 @@
+# Initial local deployment: preserve the caller's upstream credentials.
+# This is an API reverse proxy, not an HTTP CONNECT forward proxy.
+server:
+  host: 0.0.0.0
+  port: 8096
+  forwardTimeoutMs: 600000
+
+upstream:
+  # Compose can override the URL with PROXY_UPSTREAM_URL via --upstream.
+  url: https://chatgpt.com/backend-api/codex
+  apiKey: ""
+
+log:
+  level: info
+  backend: console
+  file: ""
+
+storage:
+  enabled: true
+  backend: sqlite
+  sqlite:
+    dbPath: /data/tdai-memory-proxy/proxy.db
+
+redis:
+  enabled: false
+rateLimit:
+  tpm: 0
+  qpm: 0
+costGuard:
+  enabled: false
+creditReport:
+  url: ""
+
+# Clients can now send x-tdai-user-key separately from model authentication.
+# Keep capture off until clients supply their Memory key and select a session.
+auth:
+  enabled: true
+  url: http://memory:8420
+  serviceToken: "${MEMORY_CORE_GATEWAY_API_KEY}"
+sessionInit:
+  enabled: true
+injection:
+  enabled: true
+  assetReflection:
+    markerOptIn: true
+extraction:
+  enabled: true
+tdai:
+  enabled: true
+  endpoint: http://memory:8420
+  apiKey: "${MEMORY_CORE_GATEWAY_API_KEY}"
+  serviceId: default
+  memory:
+    enabled: true
+    writeL0: true
+    inject: false
+    recallL1: false
+    injectL2L3: false
+skill:
+  endpoint: http://memory:8420
+  serviceToken: "${MEMORY_CORE_GATEWAY_API_KEY}"
+knowledge:
+  enabled: true
+
+opik:
+  enabled: false
+langfuse:
+  enabled: false
+clickhouse:
+  enabled: false
+traceArchive:
+  enabled: false
