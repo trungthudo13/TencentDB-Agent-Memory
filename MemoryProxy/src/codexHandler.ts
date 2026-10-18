@@ -49,7 +49,7 @@ import {
 } from "./langfuse.js";
 import { TdaiClient } from "./tdai/client.js";
 import { deriveTdaiIdentity } from "./tdai/identity.js";
-import { recordTdaiTurn } from "./tdai/recorder.js";
+import { extractLatestUserMessage, recordTdaiTurn } from "./tdai/recorder.js";
 import { trackWrite, withL0Retry } from "./tdai/pending-writes.js";
 import type { TdaiIdentity, TdaiMessage } from "./tdai/types.js";
 import { triggerSkillExtractIfReady } from "./skill/handler-glue.js";
@@ -101,18 +101,13 @@ function createCodexTdaiClient(config: ProxyConfig, spaceId?: string): TdaiClien
 }
 
 /**
- * 从 codex `input[]` 抽最后一条 role=user 的真实用户文本, 组装 TdaiMessage。
- * 相当于 tdai/recorder.ts::extractLatestUserMessage 的 codex 变体 —— 差别在
- * 遍历判据 (type==="message" && role==="user") 与文本取值 (content[].input_text)。
- * 复用 codexAdapter.extractUserText, 保证跟 codexHandler 里 langfuse traceInput
- * 使用同一份用户提问文本 (docs/2026-08-07-codex-integration-plan.md §9)。
+ * Extract only new user input for L0. The general adapter intentionally scans
+ * history for tracing/commands, whereas recording must stop at a prior response
+ * or tool boundary to avoid replaying the same user message on continuations.
  */
 function extractLatestCodexUserMessage(input: unknown): TdaiMessage | null {
   if (!Array.isArray(input)) return null;
-  const text = codexAdapter.extractUserText(input) ?? "";
-  const trimmed = text.trim();
-  if (!trimmed) return null;
-  return { role: "user", content: trimmed };
+  return extractLatestUserMessage(input);
 }
 
 // ── Codex session state (exported for unit tests) ────────────────────────────

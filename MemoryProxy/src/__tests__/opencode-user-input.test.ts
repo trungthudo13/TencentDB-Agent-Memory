@@ -40,7 +40,7 @@ describe("OpenCode user input with recalled memory", () => {
       { role: "user", content: "<tdai_recalled_l1_memories>\nprevious private memory\n</tdai_recalled_l1_memories>" },
     ];
 
-    expect(extractLatestUserMessage(messages)?.content).toBe("第一轮真实问题");
+    expect(extractLatestUserMessage(messages)).toBeNull();
     expect(opencodeAdapter.extractUserText(messages[2].content)).toBeNull();
   });
 
