@@ -455,16 +455,23 @@ export const enUS = {
   'code.table.selected': 'Selected',
   'code.register.caption': 'Register Repository',
   'code.register.gitUrl': 'Git URL',
+  'code.register.protocol': 'Connection',
+  'code.register.authentication': 'Authentication (optional)',
+  'code.register.username': 'Username (optional)',
+  'code.register.password': 'Password / access token (optional)',
+  'code.register.importKey': 'Import Private Key',
+  'code.register.removeKey': 'Remove',
+  'code.register.passphrase': 'Key passphrase (optional)',
+  'code.register.keyTooLarge': 'Private key must be no larger than 64 KB.',
+  'code.register.invalidKey': 'Select a PEM or OpenSSH private key file.',
   'code.register.gitUrlExtra':
     'After registration, it will automatically clone and build a code index.',
   'code.register.gitUrlPlaceholder': 'https://gitlab.example.com/namespace/repo.git',
   'code.register.branch': 'Branch',
-  'code.register.sshWarning':
-    'SSH format repository URLs are not supported in this version. Please use HTTPS format (e.g. https://gitlab.example.com/namespace/repo.git).',
   'code.register.urlError':
     'Please enter a valid HTTP(S) Git repository URL ending with .git (e.g. https://gitlab.example.com/namespace/repo.git). No spaces allowed.',
   'code.register.invalidUrl':
-    'Please enter a valid HTTPS Git repository URL ending with .git (e.g. https://gitlab.example.com/namespace/repo.git). No spaces allowed.',
+    'Enter a valid repository URL for the selected connection: https://host/owner/repo.git, git@host:owner/repo.git or ssh://git@host/owner/repo.git.',
   'code.register.submitting': 'Registering…',
   'code.register.submit': 'Register',
   'code.confirm.delete': 'Are you sure you want to delete repo "{{name}} ({{branch}}"?',

@@ -45,7 +45,8 @@ COPY src/ ./src/
 COPY openapi.yaml ./openapi.yaml
 
 RUN npm run build
-RUN npm prune --omit=dev
+RUN --mount=type=cache,id=npm-cache-knowledge,target=/root/.npm \
+    npm ci --omit=dev --prefer-offline --no-audit --no-fund
 
 # ── Stage 2: runtime ──
 FROM node:22-slim AS runtime
@@ -59,7 +60,7 @@ RUN if [ "$APT_MIRROR" != "deb.debian.org" ]; then \
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
-      git curl ca-certificates tini \
+      git openssh-client curl ca-certificates tini \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

@@ -1,3 +1,4 @@
+export interface GitCredentials { username?: string; password?: string; private_key?: string; passphrase?: string; }
 /**
  * Knowledge Panel API 客户端（v1.0 冻结）
  *
@@ -432,8 +433,8 @@ export const knowledgeApi = {
 
   code: {
     /** 创建（注册仓库） */
-    create: (opts: { teamId: string; repoUrl: string; branch?: string; repoName?: string }): Promise<CodeGraphDetail> =>
-      panelPost('/code-graph/create', { team_id: opts.teamId, repo_url: opts.repoUrl, branch: opts.branch ?? 'main', repo_name: opts.repoName }),
+    create: (opts: { teamId: string; repoUrl: string; branch?: string; repoName?: string; credentials?: GitCredentials }): Promise<CodeGraphDetail> =>
+      panelPost('/code-graph/create', { team_id: opts.teamId, repo_url: opts.repoUrl, branch: opts.branch ?? 'main', repo_name: opts.repoName, credentials: opts.credentials }),
 
     /** @deprecated 使用 teamAssets */
     list: async (teamId: string): Promise<CodeGraphDetail[]> => {

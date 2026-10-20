@@ -1,3 +1,4 @@
+export interface GitCredentials { username?: string; password?: string; private_key?: string; passphrase?: string; }
 /**
  * Knowledge RPC 端口 — Wiki（15 端点）+ Code-Graph（13 端点）。
  *
@@ -179,7 +180,7 @@ export interface KnowledgeClientPort {
   wikiSearch(wikiId: string, query: string, limit?: number, graph?: { hop?: number; decay?: number; minScore?: number }): Promise<WikiSearchResult>;
 
   // Code-Graph（create/list 带 IdFields；get/sync/delete/查询 仅资产 id 寻址）
-  codeGraphCreate(teamId: string, repoUrl: string, branch?: string, userId?: string, repoName?: string): Promise<CodeGraphDetail>;
+  codeGraphCreate(teamId: string, repoUrl: string, branch?: string, userId?: string, repoName?: string, credentials?: GitCredentials): Promise<CodeGraphDetail>;
   codeGraphList(teamId: string, opts?: { status?: string; limit?: number; offset?: number }): Promise<CodeGraphListResult>;
   codeGraphGet(codeGraphId: string): Promise<CodeGraphDetail>;
   codeGraphSync(codeGraphId: string): Promise<CodeGraphSyncResult>;

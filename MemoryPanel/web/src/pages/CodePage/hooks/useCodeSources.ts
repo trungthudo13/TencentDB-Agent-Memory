@@ -8,7 +8,7 @@ import { knowledgeApi, type CodeGraphDetail } from '@/lib/api/knowledge-api';
 import { useTeams, useAgents } from '@/services';
 import { readAuth } from '@/components/LoginGate';
 import { tea } from '@/lib/tea-bridge';
-import { isValidGitHttpUrl, formatRepoName, type ScopeTab, type StatusFilter, type SubView, type ViewMode } from '../constants/code-constants';
+import { isValidGitHttpUrl, isValidGitSshUrl, formatRepoName, type ScopeTab, type StatusFilter, type SubView, type ViewMode } from '../constants/code-constants';
 
 export function useCodeSources() {
   const { t } = useTranslation();
@@ -29,6 +29,24 @@ export function useCodeSources() {
   const [showRegister, setShowRegister] = useState(false);
   const [formRepo, setFormRepo] = useState('');
   const [formBranch, setFormBranch] = useState('main');
+  const [formProtocol, setFormProtocol] = useState('https');
+  const [formUsername, setFormUsername] = useState('');
+  const [formPassword, setFormPassword] = useState('');
+  const [formPrivateKey, setFormPrivateKey] = useState('');
+  const [formPassphrase, setFormPassphrase] = useState('');
+  const [keyFileName, setKeyFileName] = useState('');
+  useEffect(() => {
+    setFormUsername(''); setFormPassword(''); setFormPrivateKey(''); setFormPassphrase(''); setKeyFileName('');
+  }, [showRegister, formProtocol]);
+  const importPrivateKey = async (file: File) => {
+    try {
+      if (file.size > 65536) throw new Error(t('code.register.keyTooLarge'));
+      const key = await file.text();
+      if (!/-----BEGIN (?:OPENSSH |RSA |EC |DSA |ENCRYPTED )?PRIVATE KEY-----/.test(key)) throw new Error(t('code.register.invalidKey'));
+      setFormPrivateKey(key); setKeyFileName(file.name);
+    } catch (error) { tea.notify.error(error); }
+  };
+
   const [submitting, setSubmitting] = useState(false);
 
   // Allocate-to-agent dialog state
@@ -273,13 +291,15 @@ export function useCodeSources() {
     const repo = formRepo.trim();
     if (!repo || !formBranch.trim() || !activeTeamId) return;
     // 防御性校验：按钮已按 validUrl 禁用，这里再挡一层防止绕过
-    if (!isValidGitHttpUrl(repo)) {
+    if (!(formProtocol === 'ssh' ? isValidGitSshUrl(repo) : isValidGitHttpUrl(repo))) {
       tea.notify.error(t('code.register.invalidUrl'));
       return;
     }
     setSubmitting(true);
     try {
-      const detail = await knowledgeApi.code.create({ teamId: activeTeamId, repoUrl: repo, branch: formBranch.trim(), repoName: repo });
+      const detail = await knowledgeApi.code.create({ teamId: activeTeamId, repoUrl: repo, branch: formBranch.trim(), repoName: repo, credentials: formProtocol === 'ssh'
+        ? (formPrivateKey ? { private_key: formPrivateKey, passphrase: formPassphrase || undefined } : undefined)
+        : (formUsername || formPassword ? { username: formUsername || undefined, password: formPassword || undefined } : undefined) });
       setShowRegister(false);
       setFormRepo('');
       setFormBranch('main');
@@ -405,6 +425,8 @@ export function useCodeSources() {
     setFormRepo,
     formBranch,
     setFormBranch,
+    formProtocol, setFormProtocol, formUsername, setFormUsername, formPassword, setFormPassword,
+    formPrivateKey, setFormPrivateKey, formPassphrase, setFormPassphrase, keyFileName, setKeyFileName, importPrivateKey,
     submitting,
     setSubmitting,
     // allocate

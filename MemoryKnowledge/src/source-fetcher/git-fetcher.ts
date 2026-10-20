@@ -6,10 +6,14 @@
  * 安全防护（002 §4-5）：
  *   - R1 git hooks：clone/fetch 本就不拉取远端 .git/hooks（hooks 为本地态），故不额外
  *     配置 core.hooksPath（加固版 git 会拒绝该配置，需 allowUnsafeHooksPath）。
- *   - R2 SSRF：只允许 public HTTPS + 内网/环回地址黑名单（对齐项目 security_rules）。
+ *   - R2 SSRF：允许 HTTPS / SSH + 内网/环回地址黑名单（对齐项目 security_rules）。
  *   - Bug 修复（方案 A）：增量 sync 的 git clean 排除 .codegraph/，避免删掉 codegraph 索引库。
  */
 
+import { mkdtemp, writeFile, rm, mkdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, dirname } from "node:path";
+import type { GitCredentials } from "./git-credentials.js";
 import simpleGit, { CleanOptions, ResetMode } from "simple-git";
 import type { ISourceFetcher, FetchResult, SourceType } from "./types.js";
 
@@ -37,6 +41,7 @@ function ssrfCheckEnabledFromEnv(): boolean {
 }
 
 export interface GitSourceFetcherOptions {
+  knownHostsPath?: string;
   /**
    * 是否启用 SSRF 私网 / 环回地址黑名单校验。
    * 默认读环境变量 KNOWLEDGE_SSRF_CHECK（默认开启）；显式传入时优先于环境变量。
@@ -44,50 +49,68 @@ export interface GitSourceFetcherOptions {
   ssrfCheck?: boolean;
 }
 
+// Only application-generated askpass/SSH commands and the empty credential helper are enabled.
+const AUTH_GIT_OPTIONS = { unsafe: {
+  allowUnsafeAskPass: true, allowUnsafeSshCommand: true,
+  allowUnsafeConfigEnvCount: true, allowUnsafeCredentialHelper: true,
+} };
+
+function gitEnvironment(): NodeJS.ProcessEnv {
+  const env = { ...process.env, GIT_TERMINAL_PROMPT: '0' } as NodeJS.ProcessEnv;
+  // Background Git operations never need terminal editors or pagers.
+  for (const key of ['PAGER', 'GIT_PAGER', 'EDITOR', 'GIT_EDITOR', 'GIT_SEQUENCE_EDITOR']) delete env[key];
+  return env;
+}
+
 export class GitSourceFetcher implements ISourceFetcher {
   readonly supportedType: SourceType = "git";
 
-  /** SSRF 私网黑名单校验开关（https-only 协议校验始终生效，不受此开关影响）。 */
+  /** SSRF 私网黑名单校验开关（HTTPS / SSH 协议校验始终生效，不受此开关影响）。 */
   private readonly ssrfCheck: boolean;
+  private readonly knownHostsPath?: string;
 
   constructor(opts?: GitSourceFetcherOptions) {
+    this.knownHostsPath = opts?.knownHostsPath;
     this.ssrfCheck = opts?.ssrfCheck ?? ssrfCheckEnabledFromEnv();
   }
 
   validate(sourceUrl: string): void {
-    // 第一版：仅支持 public HTTPS 仓库（SSH / 私有仓库鉴权见文档 005）。
-    if (!sourceUrl.startsWith("https://")) {
-      throw new Error(
-        "first version only supports public HTTPS repos; SSH/private repo support coming soon",
-      );
+    if (/\s|[\x00-\x1f]/.test(sourceUrl)) throw new Error("Invalid repository URL");
+    const scp = /^[a-zA-Z0-9._-]+@([a-zA-Z0-9.-]+):([^\s]+)$/.exec(sourceUrl);
+    let host = scp?.[1];
+    if (!scp) {
+      let url: URL;
+      try { url = new URL(sourceUrl); } catch { throw new Error("Invalid repository URL"); }
+      if (!['https:', 'ssh:'].includes(url.protocol)) throw new Error("Use an HTTPS or SSH repository URL");
+      if (url.password || (url.protocol === 'https:' && url.username)) throw new Error("Enter credentials in the authentication fields, not the URL");
+      if (url.search || url.hash || url.pathname === '/') throw new Error("Invalid repository URL");
+      if (url.protocol === 'ssh:' && url.username && !/^[a-zA-Z0-9._-]+$/.test(url.username)) throw new Error("Invalid SSH username");
+      host = url.hostname.replace(/^\[|\]$/g, '');
     }
-    const host = this.extractHost(sourceUrl);
-    if (!host) {
-      throw new Error(`invalid repo_url: cannot parse host from ${sourceUrl}`);
-    }
+    if (!host) throw new Error("Invalid repository host");
     // R2: SSRF 防护 —— 禁止指向内网 / 环回地址（可经 KNOWLEDGE_SSRF_CHECK=off 关闭）。
     if (this.ssrfCheck && this.isPrivateAddress(host)) {
       throw new Error(`repo_url must not point to private/loopback address: ${host}`);
     }
   }
 
-  async fetch(sourceUrl: string, branch: string, localPath: string): Promise<FetchResult> {
+  async fetch(sourceUrl: string, branch: string, localPath: string, credentials?: GitCredentials): Promise<FetchResult> {
     this.validate(sourceUrl);
     // 浅克隆单分支。注：git clone/fetch 不会拉取远端的 .git/hooks（hooks 是本地态），
     // 所以正常仓库 clone 出来不带可执行钩子；此处不再配置 core.hooksPath
     // （加固版 git 会拒绝该配置：需 allowUnsafeHooksPath）。
-    await simpleGit().clone(sourceUrl, localPath, {
+    await this.withAuth(credentials, async (env) => simpleGit(AUTH_GIT_OPTIONS).env(env).clone(sourceUrl, localPath, {
       "--depth": 1,
       "--branch": branch,
-    });
+    }));
     const version = await this.headCommit(localPath);
     return { localPath, version, sourceType: "git" };
   }
 
-  async sync(sourceUrl: string, branch: string, localPath: string): Promise<FetchResult> {
+  async sync(sourceUrl: string, branch: string, localPath: string, credentials?: GitCredentials): Promise<FetchResult> {
     this.validate(sourceUrl);
-    const git = simpleGit(localPath);
-    await git.fetch("origin", branch, { "--depth": 1 });
+    const git = simpleGit(localPath, AUTH_GIT_OPTIONS);
+    await this.withAuth(credentials, async (env) => git.env(env).fetch("origin", branch, { "--depth": 1 }));
     await git.reset(ResetMode.HARD, [`origin/${branch}`]);
     // Bug 修复（方案 A）：clean 排除 .codegraph/，否则会删掉 codegraph 的索引库，
     // 导致增量 sync 永远失败、每次回退到全量 clone。
@@ -100,18 +123,45 @@ export class GitSourceFetcher implements ISourceFetcher {
 
   private async headCommit(localPath: string): Promise<string | null> {
     try {
-      return (await simpleGit(localPath).revparse(["HEAD"])).trim().slice(0, 12);
+      return (await simpleGit(localPath, AUTH_GIT_OPTIONS).env(gitEnvironment()).revparse(["HEAD"])).trim().slice(0, 12);
     } catch {
       return null;
     }
   }
 
-  private extractHost(url: string): string {
+  private async withAuth<T>(credentials: GitCredentials | undefined, run: (env: NodeJS.ProcessEnv) => Promise<T>): Promise<T> {
+    const env = gitEnvironment();
+    const dir = await mkdtemp(join(tmpdir(), 'codegraph-git-'));
+    const quote = (value: string) => "'" + value.replace(/'/g, "'\\''") + "'";
     try {
-      return new URL(url).hostname;
-    } catch {
-      return "";
-    }
+      if (this.knownHostsPath) {
+        await mkdir(dirname(this.knownHostsPath), { recursive: true, mode: 0o700 });
+        await writeFile(this.knownHostsPath, '', { flag: 'a', mode: 0o600 });
+      }
+      const hostOptions = '-o StrictHostKeyChecking=accept-new' + (this.knownHostsPath ? ` -o UserKnownHostsFile=${quote(this.knownHostsPath)}` : '');
+      const askpass = join(dir, 'askpass');
+      await writeFile(askpass, '#!/bin/sh\ncase "$1" in\n*Username*) printf "%s\\n" "$CG_GIT_USERNAME" ;;\n*) printf "%s\\n" "$CG_GIT_PASSWORD" ;;\nesac\n', { mode: 0o700 });
+      Object.assign(env, {
+        GIT_SSH_COMMAND: process.env.GIT_SSH_COMMAND ?? `ssh -o BatchMode=yes ${hostOptions}`,
+      });
+      if (credentials?.username || credentials?.password) {
+        Object.assign(env, { GIT_ASKPASS: askpass, CG_GIT_USERNAME: credentials.username ?? '', CG_GIT_PASSWORD: credentials.password ?? '', GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'credential.helper', GIT_CONFIG_VALUE_0: '' });
+      }
+      if (credentials?.private_key) {
+        const keyPath = join(dir, 'identity');
+        await writeFile(keyPath, credentials.private_key.trim() + '\n', { mode: 0o600 });
+        Object.assign(env, {
+          GIT_SSH_COMMAND: `ssh -i ${quote(keyPath)} -o IdentitiesOnly=yes -o PreferredAuthentications=publickey -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no ${hostOptions} -o BatchMode=${credentials.passphrase ? 'no' : 'yes'}`,
+          SSH_ASKPASS: askpass, SSH_ASKPASS_REQUIRE: 'force', DISPLAY: ':0',
+          CG_GIT_PASSWORD: credentials.passphrase ?? '',
+        });
+      }
+      return await run(env);
+    } catch (error) {
+      // Do not forward remote stderr when credentials were supplied: servers may echo secrets.
+      if (credentials) throw new Error('Git clone/fetch failed. Check repository access, credentials, branch and SSH host trust.');
+      throw error;
+    } finally { await rm(dir, { recursive: true, force: true }); }
   }
 
   private isPrivateAddress(host: string): boolean {

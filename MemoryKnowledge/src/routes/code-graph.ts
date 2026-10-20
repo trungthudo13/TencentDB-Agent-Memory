@@ -1,3 +1,5 @@
+import { GitSourceFetcher } from "../source-fetcher/git-fetcher.js";
+import { parseGitCredentials } from "../source-fetcher/git-credentials.js";
 /**
  * Code-Graph Routes — 13 endpoints (Hono rewrite).
  *
@@ -187,6 +189,11 @@ export function createCodeGraphRoutes(deps: CodeGraphRouteDeps): Hono {
     const repoUrl = body.repo_url;
     if (typeof repoUrl !== "string" || !repoUrl) return c.json(wrapError(400, "repo_url is required"), 400);
 
+    let credentials;
+    try {
+      new GitSourceFetcher().validate(repoUrl);
+      credentials = parseGitCredentials(body.credentials, !/^https:\/\//i.test(repoUrl));
+    } catch (error) { return c.json(wrapError(400, (error as Error).message), 400); }
     const branch = typeof body.branch === "string" && body.branch ? body.branch : "main";
     const repoName = typeof body.repo_name === "string" ? body.repo_name : undefined;
 
@@ -194,6 +201,7 @@ export function createCodeGraphRoutes(deps: CodeGraphRouteDeps): Hono {
       service_id: idFields.service_id,
       team_id: idFields.team_id,
       repo_url: repoUrl,
+      credentials,
       branch,
       repo_name: repoName,
       owner_user_id: idFields.user_id,

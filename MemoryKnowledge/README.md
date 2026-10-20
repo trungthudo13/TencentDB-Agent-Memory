@@ -115,3 +115,14 @@ KNOWLEDGE_CLICKHOUSE_PASSWORD=              # 仅从环境注入，不写入代�
 
 配置 `LANGFUSE_PUBLIC_KEY` + `LANGFUSE_SECRET_KEY`（及可选 `LANGFUSE_BASE_URL`）即可上报 Wiki LLM 调用。  
 未配置时关闭 Trace，不影响业务。
+
+### Git repository authentication
+
+Register Repository supports HTTPS URLs, `git@host:owner/repo.git`, and `ssh://git@host:port/owner/repo.git`.
+Authentication is optional. HTTPS accepts a username and password/access token; SSH accepts an imported PEM/OpenSSH private key and optional passphrase. When omitted, Git uses the server's existing credentials. Providers that disable Git account passwords require an access token in the password field.
+
+`POST /v3/code-graph/create` accepts an optional `credentials` object with `username`/`password` for HTTPS or `private_key`/`passphrase` for SSH. These fields are write-only and are reused for subsequent syncs. Re-registering an existing repository with credentials updates its saved credentials and triggers sync when idle. If it is already building, the new credentials apply to the next sync. Leaving authentication blank preserves any existing saved credentials.
+
+Credentials are encrypted with AES-256-GCM under `${KNOWLEDGE_DATA_DIR}/_git_credentials`, with a locally generated master key (file mode 0600). Persist and back up this directory with the data volume. It is outside checkouts, so indexing and clone fallback do not expose or delete secrets. Deleting an asset removes its saved credentials. Private keys used by Git are temporary files removed after each operation; credentials are never embedded in remote URLs.
+
+SSH requires `openssh-client` (included in the Docker images). Host keys use trust-on-first-use (`StrictHostKeyChecking=accept-new`) and are persisted in `_git_credentials/known_hosts`; changed host keys are rejected. Existing SSRF restrictions also apply to SSH. This implementation does not add credential rotation or provider OAuth flows.

@@ -1,3 +1,4 @@
+import type { GitCredentials } from "../../../kernel/ports/knowledge-client-port.js";
 /**
  * /api/v1/knowledge/code-graph/* —— Panel Code-Graph 业务路由（stateless）。
  *
@@ -58,7 +59,7 @@ export function registerKnowledgeCodeGraphRoutes(api: Hono, deps: PanelDeps): vo
     const repoName = str(body, 'repo_name') ?? undefined;
     const kc = deps.knowledgeClientFactory(ctx.instanceId);
     try {
-      const detail = await kc.codeGraphCreate(teamId, repoUrl, branch, gate.userId, repoName);
+      const detail = await kc.codeGraphCreate(teamId, repoUrl, branch, gate.userId, repoName, body.credentials as GitCredentials | undefined);
       // stash owner key 供 status-callback ready 时以 owner 身份注册 meta asset
       // （callback 是 S2S、无 user_key；详见 knowledge-task-registry.ts）
       if (ctx.userKey) {

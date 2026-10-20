@@ -1,3 +1,4 @@
+import type { GitCredentials } from "../ports/knowledge-client-port.js";
 /**
  * Knowledge HTTP 客户端 — 调 core 的 /v3/wiki/* 和 /v3/code-graph/*.
  *
@@ -154,13 +155,14 @@ export class HttpKnowledgeClient implements KnowledgeClientPort {
 
   // ═══════════════ Code-Graph ═══════════════
 
-  async codeGraphCreate(teamId: string, repoUrl: string, branch?: string, userId?: string, repoName?: string): Promise<CodeGraphDetail> {
+  async codeGraphCreate(teamId: string, repoUrl: string, branch?: string, userId?: string, repoName?: string, credentials?: GitCredentials): Promise<CodeGraphDetail> {
     return this.post('/v3/code-graph/create', {
       team_id: teamId,
       user_id: userId,
       repo_url: repoUrl,
       branch: branch ?? 'main',
       repo_name: repoName,
+      credentials,
     });
   }
 

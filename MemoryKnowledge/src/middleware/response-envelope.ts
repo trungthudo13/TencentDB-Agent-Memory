@@ -23,7 +23,8 @@ function pickReqFields(body: unknown): Record<string, unknown> {
   const b = body as Record<string, unknown>;
   const out: Record<string, unknown> = {};
   for (const k of ['wiki_id', 'code_graph_id', 'knowledge_id', 'wiki_ids', 'code_graph_ids', 'knowledge_ids', 'team_id', 'repo_url', 'branch', 'filename', 'filenames', 'refs', 'tool_name', 'query', 'path']) {
-    if (k in b) out[k] = b[k];
+    if (k in b) out[k] = k === 'repo_url' && typeof b[k] === 'string'
+      ? b[k].replace(/(\/\/)[^/]*@/, '$1[REDACTED]@') : b[k];
   }
   return out;
 }
@@ -38,13 +39,12 @@ export function accessLog(): MiddlewareHandler {
     c.set("requestId", requestId);
 
     // 缓存 request body（body 只能读一次，失败时用于日志）
-    // Hono 的 bodyCache 期望 Promise（c.req.json()/text() 会对缓存值调 .then()）
+    // c.req.text() caches its own result; cache parsed JSON for downstream routes.
     let reqBody: unknown = undefined;
     if (c.req.method === 'POST' || c.req.method === 'PUT') {
       try {
         const raw = await c.req.text();
         reqBody = raw ? JSON.parse(raw) : undefined;
-        c.req.bodyCache.text = Promise.resolve(raw);
         if (reqBody) c.req.bodyCache.json = Promise.resolve(reqBody);
       } catch {
         // 非 JSON body，忽略

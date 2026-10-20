@@ -3,6 +3,7 @@
  * 列表视图渲染与组件组装；状态/数据逻辑在 useCodeSources，详情在 CodeDetailView，
  * Markdown 渲染统一走共享 AssetMarkdown。
  */
+import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Alert, Button, Card, Form, Input, Justify, MetricsBoard, Modal, SearchBox, Segment, Select, StatusTip, Table, Text } from 'tea-component';
 import { ChevronRightIcon, CodeIcon, DeleteIcon, RefreshIcon, UsergroupIcon, ViewListIcon, ViewModuleIcon } from 'tea-icons-react';
@@ -10,7 +11,7 @@ import { knowledgeApi } from '@/lib/api/knowledge-api';
 import { tea } from '@/lib/tea-bridge';
 import AllocateAssetDialog from '@/components/asset/AllocateAssetDialog';
 import { AssetPageHeader } from '@/components/asset/AssetPageHeader';
-import { formatRepoName, formatShortTime, isValidGitHttpUrl, type ScopeTab, type StatusFilter, type ViewMode } from '../constants/code-constants';
+import { formatRepoName, formatShortTime, isValidGitHttpUrl, isValidGitSshUrl, type ScopeTab, type StatusFilter, type ViewMode } from '../constants/code-constants';
 import { CodeOwnerLabel, statusLabel } from './code-ui';
 import { useCodeSources } from '../hooks/useCodeSources';
 import { CodeDetailView } from './code-detail-view';
@@ -22,6 +23,7 @@ const { scrollable } = Table.addons;
 export default function CodeSourcesPanel() {
   const { t } = useTranslation();
   const code = useCodeSources();
+  const privateKeyInputRef = useRef<HTMLInputElement>(null);
 
   const {
     // context
@@ -48,6 +50,8 @@ export default function CodeSourcesPanel() {
     setFormRepo,
     formBranch,
     setFormBranch,
+    formProtocol, setFormProtocol, formUsername, setFormUsername, formPassword, setFormPassword,
+    formPrivateKey, setFormPrivateKey, formPassphrase, setFormPassphrase, keyFileName, setKeyFileName, importPrivateKey,
     submitting,
     // allocate
     allocateTarget,
@@ -434,10 +438,10 @@ export default function CodeSourcesPanel() {
       {showRegister &&
         (() => {
           const trimmedRepo = formRepo.trim();
-          const isSsh = trimmedRepo.startsWith('git@');
-          const validUrl = isValidGitHttpUrl(trimmedRepo);
-          // 已输入内容、非 SSH、但又不是合法 http(s) 地址 → 提示格式错误。
-          const showUrlError = !!trimmedRepo && !isSsh && !validUrl;
+          const isSsh = formProtocol === 'ssh';
+          const validUrl = isSsh ? isValidGitSshUrl(trimmedRepo) : isValidGitHttpUrl(trimmedRepo);
+          // Validate against the selected transport before enabling registration.
+          const showUrlError = !!trimmedRepo && !validUrl;
           return (
             <Modal
               visible
@@ -448,24 +452,42 @@ export default function CodeSourcesPanel() {
             >
               <Modal.Body>
                 <Form>
+                  <Form.Item label={t('code.register.protocol')}>
+                    <Segment value={formProtocol} onChange={setFormProtocol} options={[{ value: 'https', text: 'HTTPS' }, { value: 'ssh', text: 'SSH' }]} />
+                  </Form.Item>
                   <Form.Item label={t('code.register.gitUrl')} required extra={t('code.register.gitUrlExtra')}>
                     <Input
                       size="full"
                       value={formRepo}
                       onChange={setFormRepo}
-                      placeholder="https://gitlab.example.com/namespace/repo.git"
+                      placeholder={isSsh ? 'git@github.com:namespace/repo.git' : 'https://github.com/namespace/repo.git'}
                     />
                   </Form.Item>
-                  {isSsh && (
-                    <Form.Item>
-                      <Alert type="warning">{t('code.register.sshWarning')}</Alert>
-                    </Form.Item>
-                  )}
                   {showUrlError && (
                     <Form.Item>
                       <Alert type="error">{t('code.register.invalidUrl')}</Alert>
                     </Form.Item>
                   )}
+                  <Form.Item label={t('code.register.authentication')}>
+                    {isSsh ? (
+                      <div>
+                        <Button disabled={submitting} onClick={() => privateKeyInputRef.current?.click()}>
+                          {t('code.register.importKey')}
+                        </Button>
+                          <input ref={privateKeyInputRef} type="file" style={{ display: 'none' }} aria-label={t('code.register.importKey')} disabled={submitting} onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            if (file) void importPrivateKey(file);
+                            event.target.value = '';
+                          }} />
+                        {keyFileName && <div>{keyFileName} <Button type="link" onClick={() => { setFormPrivateKey(''); setFormPassphrase(''); setKeyFileName(''); }}>{t('code.register.removeKey')}</Button></div>}
+                      </div>
+                    ) : <Input size="full" value={formUsername} onChange={setFormUsername} placeholder={t('code.register.username')} autoComplete="off" />}
+                  </Form.Item>
+                  {isSsh ? (formPrivateKey && <Form.Item label={t('code.register.passphrase')}>
+                    <Input size="full" type="password" value={formPassphrase} onChange={setFormPassphrase} autoComplete="new-password" />
+                  </Form.Item>) : <Form.Item label={t('code.register.password')}>
+                    <Input size="full" type="password" value={formPassword} onChange={setFormPassword} autoComplete="new-password" />
+                  </Form.Item>}
                   <Form.Item label={t('code.register.branch')} required>
                     <Input
                       size="full"

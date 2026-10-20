@@ -1,3 +1,4 @@
+import { GitCredentialStore, type GitCredentials } from "../source-fetcher/git-credentials.js";
 /**
  * CodeGraphService — code-graph 资产的异步编排。
  *
@@ -30,6 +31,7 @@ import type {
 import { BuildQueue } from "./build-queue.js";
 
 export interface CodeGraphBuildContext {
+  credentials?: GitCredentials;
   codeGraphId: string;
   serviceId: string;
   teamId: string;
@@ -83,6 +85,7 @@ export interface CodeGraphServiceOptions {
 }
 
 export interface CreateCodeGraphParams {
+  credentials?: GitCredentials;
   service_id: string;
   team_id: string;
   repo_url: string;
@@ -96,6 +99,7 @@ export interface CreateCodeGraphParams {
 }
 
 export class CodeGraphService {
+  private readonly credentials: GitCredentialStore;
   private readonly store: IKnowledgeStore;
   private readonly dataRoot: string;
   private readonly worker: CodeGraphWorker;
@@ -111,6 +115,7 @@ export class CodeGraphService {
   private readonly cancelled = new Set<string>();
 
   constructor(opts: CodeGraphServiceOptions) {
+    this.credentials = new GitCredentialStore(opts.dataRoot);
     this.store = opts.store;
     this.dataRoot = opts.dataRoot;
     this.worker = opts.worker;
@@ -130,7 +135,20 @@ export class CodeGraphService {
    * - 新建 → 入库 pending + 后台建图。
    */
   create(params: CreateCodeGraphParams): { row: CodeGraphRow; existed: boolean } {
-    const { row, existed } = this.store.createCodeGraph(params);
+    const { credentials, ...metadata } = params;
+    const { row, existed } = this.store.createCodeGraph(metadata);
+    if (credentials) {
+      try { this.credentials.put(row.service_id, row.code_graph_id, credentials); }
+      catch (error) {
+        if (!existed) this.store.deleteCodeGraph(row.service_id, row.team_id, row.code_graph_id);
+        throw error;
+      }
+      // Re-registering a failed private repository with credentials retries it.
+      if (existed) {
+        const result = this.sync(row.service_id, row.team_id, row.code_graph_id, params.user_id);
+        if (result.kind === 'ok') return { row: result.row, existed };
+      }
+    }
     if (!existed) {
       this.audit(row, "create", `clone ${row.repo_url}@${row.branch}`, params.user_id);
       this.enqueueBuild(row);
@@ -222,6 +240,8 @@ export class CodeGraphService {
    * BuildQueue 排队任务由 runBuild 入口检查 cancelled/行存在性跳过，无需在此处理。
    */
   private cleanupResources(serviceId: string, teamId: string, codeGraphId: string): void {
+    try { this.credentials.delete(serviceId, codeGraphId); }
+    catch { this.logger?.warn?.(`[code-graph] credential cleanup failed ${codeGraphId}`); }
     try {
       this.releaseInstance?.(codeGraphId);
     } catch (err) {
@@ -291,6 +311,7 @@ export class CodeGraphService {
     });
     try {
       const result = await this.worker({
+        credentials: this.credentials.get(serviceId, codeGraphId),
         codeGraphId,
         serviceId,
         teamId,

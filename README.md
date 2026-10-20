@@ -279,7 +279,7 @@ PersonaMem tests whether an Agent can correctly understand and apply user inform
 ## Notes
 
 - Wiki and CodeGraph are built asynchronously; allow some processing time before they reach `ready` status.
-- CodeGraph currently prioritizes public HTTPS repositories; support for private repositories and SSH credentials is still being refined.
+- CodeGraph supports HTTPS and SSH repositories. Register Repository accepts optional HTTPS username/password (or access token), or an imported SSH private key with an optional passphrase. Leave authentication blank for public access or existing server credentials. Credentials are stored encrypted outside indexed checkouts and reused for sync.
 - The Hub supports manual asset binding; fully automated memory routing is still under iteration.
 
 ## Related Documentation

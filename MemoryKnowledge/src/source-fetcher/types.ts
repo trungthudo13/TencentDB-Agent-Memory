@@ -1,3 +1,4 @@
+import type { GitCredentials } from "./git-credentials.js";
 /**
  * SourceFetcher 接口层 — 协议无关的源码拉取与安全校验抽象。
  *
@@ -24,15 +25,15 @@ export interface FetchResult {
  *   3. 返回版本标识
  *
  * 实现：
- *   - GitSourceFetcher：simple-git，第一版仅 public HTTPS（SSH/私有仓库鉴权见文档 005）
+ *   - GitSourceFetcher：simple-git，HTTPS / SSH with optional credentials
  *   - LocalSourceFetcher / FtpSourceFetcher：未来扩展
  */
 export interface ISourceFetcher {
   /** 首次拉取：把源码下载到 localPath。 */
-  fetch(sourceUrl: string, branch: string, localPath: string): Promise<FetchResult>;
+  fetch(sourceUrl: string, branch: string, localPath: string, credentials?: GitCredentials): Promise<FetchResult>;
 
   /** 增量同步：更新已存在的 localPath 到最新版本。 */
-  sync(sourceUrl: string, branch: string, localPath: string): Promise<FetchResult>;
+  sync(sourceUrl: string, branch: string, localPath: string, credentials?: GitCredentials): Promise<FetchResult>;
 
   /** 校验 sourceUrl 是否合法（协议白名单 + SSRF 防护）。非法则 throw。 */
   validate(sourceUrl: string): void;

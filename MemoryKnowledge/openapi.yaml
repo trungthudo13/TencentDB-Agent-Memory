@@ -1055,6 +1055,25 @@ components:
           properties:
             repo_url:
               type: string
+            credentials:
+              type: object
+              description: Optional Git credentials, stored encrypted and reused for sync. Never returned in responses.
+              properties:
+                username:
+                  type: string
+                  writeOnly: true
+                password:
+                  type: string
+                  writeOnly: true
+                  description: HTTPS password or access token
+                private_key:
+                  type: string
+                  writeOnly: true
+                  description: SSH private key in PEM or OpenSSH format
+                passphrase:
+                  type: string
+                  writeOnly: true
+                  description: Optional SSH private key passphrase
             branch:
               type: string
               default: main
