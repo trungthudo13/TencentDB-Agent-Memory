@@ -1,5 +1,224 @@
 # Docker deployment
 
+## MemoryAcp: use a Codex subscription for L1 — step by step
+
+This guide connects **MemoryCore → MemoryAcp → Codex** for L1 memory extraction
+and deduplication. Run all commands below from the **repository root**
+(the directory containing `docker/`, `MemoryCore/`, and `MemoryAcp/`).
+
+| Component | Purpose |
+| --- | --- |
+| `memory` | MemoryCore: receives conversations and processes memory |
+| `memory-acp` | Bridge that calls Codex using ChatGPT authentication |
+| `mongodb` | Stores memory data |
+| `memory-proxy` | Captures coding-client conversations as L0; configured separately in the next section |
+
+Only **L1** uses ACP. **L2/L3, skills, and Knowledge** still use the provider
+configured in `MEMORY_LLM_*`. MemoryAcp does not automatically capture
+conversations from Codex on your computer.
+
+### Step 1 — Check Docker and prepare the configuration
+
+```bash
+docker --version
+docker compose version
+```
+
+Both commands must succeed. Docker Engine or Docker Desktop must be running.
+
+If `docker/.env` does not exist, create it from the example. This command
+preserves an existing file:
+
+```bash
+if [ ! -f docker/.env ]; then
+  cp docker/.env.example docker/.env
+fi
+```
+
+Open `docker/.env` in an editor and fill in the required deployment settings,
+especially `TDAI_PASSWORD_PEPPER` and `MEMORY_CORE_GATEWAY_API_KEY`.
+Keep existing secrets unchanged if the deployment already contains data.
+
+Check or add the following variables. Each variable name should appear only once:
+
+```dotenv
+MEMORY_L1_ACP_BASE_URL=http://memory-acp:8097/v1
+MEMORY_L1_ACP_MODEL=codex
+MEMORY_ACP_TOKEN=
+MEMORY_ACP_PORT=8097
+MEMORY_ACP_TIMEOUT_MS=120000
+MEMORY_ACP_MAX_QUEUE=8
+```
+
+- `memory-acp` in the URL is the service name on the Docker network, not `localhost`.
+- `codex` selects the adapter's default model. A specific model must match an ID
+  supported by the adapter.
+- Leaving `MEMORY_ACP_TOKEN` empty makes Compose reuse
+  `MEMORY_CORE_GATEWAY_API_KEY` to authenticate bridge requests. You can set a
+  dedicated secret instead. This is an **internal secret**, not an OpenAI API key
+  or a ChatGPT login token.
+- Do not point the global `MEMORY_LLM_BASE_URL` at ACP. Configure `MEMORY_LLM_*`
+  for L2/L3, skills, and Knowledge; `REPLACE_ME` is not a usable provider setting.
+
+Validate the Compose configuration without printing secrets:
+
+```bash
+docker compose -f docker/docker-compose.yml config --quiet
+```
+
+**Expected result:** the command exits without errors. If a required variable
+is missing, fill in the variable named in the error and run the command again.
+
+### Step 2 — Build and start the required services
+
+```bash
+docker compose -f docker/docker-compose.yml up -d --build memory-acp memory
+docker compose -f docker/docker-compose.yml ps
+```
+
+Compose also starts MongoDB because MemoryCore depends on it.
+The first build may take several minutes to download images and install dependencies.
+
+**Expected result:** `memory-acp`, `memory`, and `mongodb` all show
+`Up ... (healthy)`. If a service is still `starting`, run `ps` again shortly.
+This command does not start Panel, Knowledge, or the proxy.
+
+### Step 3 — Sign in to ChatGPT for Codex inside the container
+
+```bash
+docker compose -f docker/docker-compose.yml exec memory-acp \
+  env CODEX_HOME=/data/codex /app/node_modules/.bin/codex login --device-auth
+```
+
+1. Keep this terminal open.
+2. Open the URL displayed by Codex in your browser.
+3. Sign in with a ChatGPT account that has Codex access and enter the code shown in the terminal.
+4. Complete the browser confirmation and wait for the terminal to report a successful login.
+
+Do not paste tokens or authentication-file contents into `.env`.
+Signing in to Codex on the host **does not sign in this container automatically**.
+
+Check the login status:
+
+```bash
+docker compose -f docker/docker-compose.yml exec memory-acp \
+  env CODEX_HOME=/data/codex /app/node_modules/.bin/codex login status
+```
+
+**Expected result:** Codex reports that it is signed in with ChatGPT.
+Login state is stored in the `acp-codex-auth` volume, so normal container restarts
+or recreation preserve it. Avoid `down -v` if you want to keep your data and login.
+
+### Step 4 — Check that the bridge is running
+
+```bash
+curl -fsS http://127.0.0.1:8097/health
+```
+
+If you changed `MEMORY_ACP_PORT`, replace `8097` with your configured port.
+A typical response is:
+
+```json
+{"status":"ok","active":false,"queued":0,"authentication":"not_checked"}
+```
+
+`authentication: "not_checked"` is normal: this endpoint checks only the HTTP
+service and queue. It **does not confirm that Codex can call a model**.
+Continue to step 5 for an end-to-end check.
+
+### Step 5 — Send a test request from MemoryCore through ACP
+
+Copy the entire block below, including both lines containing `NODE`. It reads
+the secret inside the container without requiring you to enter or print it.
+This sends a test prompt and, if successful, uses some Codex quota from the
+account you signed in with.
+
+```bash
+docker compose -f docker/docker-compose.yml exec -T memory \
+  node --import tsx --input-type=module <<'NODE'
+import { createAcpL1Runner } from './src/adapters/standalone/acp-llm-runner.ts';
+
+try {
+  const runner = createAcpL1Runner();
+  if (!runner) throw new Error('L1 ACP is not enabled. Check MEMORY_L1_ACP_BASE_URL.');
+  const answer = await runner.run({
+    taskId: 'l1-acp-connectivity-check',
+    systemPrompt: 'Return only the requested short answer.',
+    prompt: 'Reply with exactly OK.',
+    timeoutMs: 120000,
+  });
+  console.log('MemoryCore → MemoryAcp → Codex: success');
+  console.log('Model response:', answer);
+} catch (error) {
+  console.error(error.message);
+  process.exitCode = 1;
+}
+NODE
+```
+
+**Expected result:** a `success` message followed by the model's response,
+typically `OK`. This confirms that Docker networking, internal authentication,
+the L1 runner, and the Codex login work together.
+
+The test does not write L0/L1 records to the database. To create real memories,
+you need L0 conversations with valid identities and an enabled L1 pipeline.
+See **MemoryProxy** below to configure conversation capture. Enabling ACP does
+not automatically enable capture or injection.
+
+### Step 6 — Apply configuration changes and troubleshoot
+
+After changing variables in `docker/.env`, run:
+
+```bash
+docker compose -f docker/docker-compose.yml up -d memory-acp memory
+```
+
+A plain `restart` does not update the container's environment. If you changed
+source code, add `--build` to the command above.
+
+Inspect service status and logs:
+
+```bash
+docker compose -f docker/docker-compose.yml ps
+docker compose -f docker/docker-compose.yml logs --tail=100 memory-acp memory
+```
+
+| Symptom | Resolution |
+| --- | --- |
+| `503` / `auth_required` | Repeat step 3 and check `login status`. The bridge accepts only ChatGPT authentication. |
+| `401 Unauthorized` | Ensure both services receive the same `MEMORY_ACP_TOKEN` or gateway key. Run `up -d memory-acp memory` after editing `.env`. |
+| `400` / `invalid_model` | Set `MEMORY_L1_ACP_MODEL=codex` to use the default model, recreate `memory`, and retry. |
+| `400` / `unsupported_parameter` | The bridge does not yet accept tools, streaming, `response_format`, or OpenAI generation parameters. Use the dedicated L1 runner; do not point the global LLM URL at the bridge. |
+| `429` / `queue_full` | The bridge queue is full. Reduce concurrent work or adjust `MEMORY_ACP_MAX_QUEUE`. |
+| `504` or a timeout | Check networking, quota, and Codex status. You can increase `MEMORY_ACP_TIMEOUT_MS` and recreate both services. |
+| `502` / `acp_error` | Check the login, model, and network connection. The adapter intentionally withholds raw errors that may contain sensitive data. |
+| `Connection refused` / `fetch failed` | Check that the service is healthy and the internal URL is `http://memory-acp:8097/v1`. Changing the host port does not change the internal Docker port. |
+| Healthy services but no L1 records | Run step 5, then check L0 capture, identities, and the pipeline. Health checks do not validate login or memory data. |
+| L1 works but L2/L3 or Knowledge fails | Configure a valid provider in `MEMORY_LLM_*`; these tasks do not use ACP yet. |
+
+Current limits: text-only, non-streaming requests; no automatic fallback to a
+paid API when Codex fails. ACP manages its own output budget, so L1's
+`maxTokens` setting is not enforced. Incomplete answers are rejected before L1
+parsing, and token credits are not estimated for ACP calls.
+
+### Step 7 — Disable ACP for L1 and restore the previous provider
+
+In `docker/.env`, set the URL to an empty string:
+
+```dotenv
+MEMORY_L1_ACP_BASE_URL=
+```
+
+Then apply the change:
+
+```bash
+docker compose -f docker/docker-compose.yml up -d memory
+```
+
+L1 returns to MemoryCore's regular runner/provider. The `MEMORY_LLM_*` provider
+must be valid for processing to continue. This preserves the database and
+Codex login volume; no container or volume deletion is needed.
+
 ## MemoryProxy
 
 Build and start only the proxy from the repository root:

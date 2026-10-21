@@ -1,0 +1,14 @@
+{
+  "name": "memory-acp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --experimental-strip-types --test test/*.test.js"
+  },
+  "dependencies": {
+    "@agentclientprotocol/codex-acp": "2.2.2"
+  }
+}

@@ -3,6 +3,28 @@ name: agent-memory
 # Run from the repository root: docker compose -f docker/docker-compose.yml up -d --build
 # Compose automatically reads docker/.env. Copy docker/.env.example to docker/.env and set MEMORY_LLM_API_KEY before starting.
 services:
+  memory-acp:
+    build:
+      context: ../MemoryAcp
+    init: true
+    restart: unless-stopped
+    environment:
+      # Reuse the internal gateway secret unless a dedicated bridge token is set.
+      MEMORY_ACP_TOKEN: ${MEMORY_ACP_TOKEN:-${MEMORY_CORE_GATEWAY_API_KEY:?Set MEMORY_ACP_TOKEN or MEMORY_CORE_GATEWAY_API_KEY}}
+      MEMORY_ACP_TIMEOUT_MS: ${MEMORY_ACP_TIMEOUT_MS:-120000}
+      MEMORY_ACP_MAX_QUEUE: ${MEMORY_ACP_MAX_QUEUE:-8}
+    ports:
+      - "127.0.0.1:${MEMORY_ACP_PORT:-8097}:8097"
+    volumes:
+      - acp-codex-auth:/data/codex
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8097/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    stop_grace_period: 10s
+
   mongodb:
     image: mongodb/mongodb-atlas-local:8.0.32
     # Keep the hostname stable so the replica set configuration remains valid when the container is recreated.
@@ -44,10 +66,17 @@ services:
       TDAI_LLM_BASE_URL: ${MEMORY_LLM_BASE_URL:?Set MEMORY_LLM_BASE_URL in docker/.env}
       TDAI_LLM_MODEL: ${MEMORY_LLM_MODEL:?Set MEMORY_LLM_MODEL in docker/.env}
       TDAI_LLM_PROTOCOL: ${MEMORY_LLM_PROTOCOL:?Set MEMORY_LLM_PROTOCOL in docker/.env}
+      # Empty MEMORY_L1_ACP_BASE_URL disables this L1-only override.
+      TDAI_L1_ACP_BASE_URL: ${MEMORY_L1_ACP_BASE_URL-http://memory-acp:8097/v1}
+      TDAI_L1_ACP_TOKEN: ${MEMORY_ACP_TOKEN:-${MEMORY_CORE_GATEWAY_API_KEY:?Set MEMORY_ACP_TOKEN or MEMORY_CORE_GATEWAY_API_KEY}}
+      TDAI_L1_ACP_MODEL: ${MEMORY_L1_ACP_MODEL:-codex}
+      TDAI_L1_ACP_TIMEOUT_MS: ${MEMORY_ACP_TIMEOUT_MS:-120000}
     volumes:
       - ../MemoryCore/tdai-gateway.local-mongo.yaml:/data/config/tdai-gateway.yaml:ro
       - memory-data:/data/tdai-memory
     depends_on:
+      memory-acp:
+        condition: service_healthy
       mongodb:
         condition: service_healthy
     healthcheck:
@@ -144,6 +173,7 @@ services:
         condition: service_healthy
 
 volumes:
+  acp-codex-auth:
   mongo-data:
   mongo-config:
   mongo-search:

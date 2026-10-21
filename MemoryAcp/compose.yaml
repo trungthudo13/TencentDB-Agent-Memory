@@ -1,0 +1,21 @@
+services:
+  memory-acp:
+    build: .
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8097:8097"
+    environment:
+      MEMORY_ACP_TOKEN: ${MEMORY_ACP_TOKEN:?Set MEMORY_ACP_TOKEN in .env}
+      MEMORY_ACP_TIMEOUT_MS: ${MEMORY_ACP_TIMEOUT_MS:-120000}
+      MEMORY_ACP_MAX_QUEUE: ${MEMORY_ACP_MAX_QUEUE:-8}
+    volumes:
+      - codex-auth:/data/codex
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8097/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    stop_grace_period: 10s
+volumes:
+  codex-auth:

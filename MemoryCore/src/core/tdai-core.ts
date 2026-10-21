@@ -52,6 +52,7 @@ import { MemoryPipelineManager } from "../utils/pipeline-manager.js";
 import { CheckpointManager } from "../utils/checkpoint.js";
 import { SessionFilter } from "../utils/session-filter.js";
 import { StandaloneLLMRunner, StandaloneLLMRunnerFactory } from "../adapters/standalone/llm-runner.js";
+import { createAcpL1Runner } from "../adapters/standalone/acp-llm-runner.js";
 import { resolveStandaloneLlmForRuntime } from "../adapters/standalone/llm-provider-resolver.js";
 import { MetricTrackingRunnerFactory } from "./report/metric-tracking-runner.js";
 
@@ -719,9 +720,10 @@ export class TdaiCore {
     // Kafka 未配置时 metricProducer.send() 是 no-op，零开销
     const trackingFactory = new MetricTrackingRunnerFactory(runnerFactory, () => this.instanceId);
 
-    const l1LlmRunner = useStandaloneRunner
+    // ACP has no exact token usage; do not apply the character-based credit estimator.
+    const l1LlmRunner = createAcpL1Runner() ?? (useStandaloneRunner
       ? trackingFactory.createRunner({ enableTools: false })
-      : undefined;
+      : undefined);
     const l2l3LlmRunner = useStandaloneRunner
       ? trackingFactory.createRunner({ enableTools: true })
       : undefined;
@@ -1057,8 +1059,9 @@ export class TdaiCore {
       ? (this.hostAdapter as { getOpenClawConfig?(): unknown }).getOpenClawConfig?.()
       : undefined;
 
+    const acpL1Runner = createAcpL1Runner();
     let runnerFactory = this.runnerFactory;
-    if (this.shouldOverrideRunnerFactory(useStandaloneRunner)) {
+    if (!acpL1Runner && this.shouldOverrideRunnerFactory(useStandaloneRunner)) {
       const runtimeLlm = this.resolveRuntimeLlm();
       runnerFactory = new StandaloneLLMRunnerFactory({
         config: runtimeLlm,
@@ -1071,9 +1074,9 @@ export class TdaiCore {
     }
     // 用 MetricTrackingRunnerFactory 装饰器包装（非侵入式 credit 上报）
     const trackingFactory = new MetricTrackingRunnerFactory(runnerFactory, () => this.instanceId);
-    const llmRunner = useStandaloneRunner
+    const llmRunner = acpL1Runner ?? (useStandaloneRunner
       ? trackingFactory.createRunner({ enableTools: false })
-      : undefined;
+      : undefined);
 
     const runner = createL1Runner({
       pluginDataDir: this.dataDir,
