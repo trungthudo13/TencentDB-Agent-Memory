@@ -53,6 +53,7 @@ const ALLOWED_SUBPATHS = new Set<string>([
 ]);
 
 interface SessionIdFields {
+  agent_source?: string;
   user_id: string;
   team_id: string;
   agent_id: string;
@@ -107,6 +108,7 @@ function toIdFields(
     task_id: s.task_id,
     user_key: s.user_key,
     space_id: s.space_id,
+    agent_source: compositeKey.includes(":") ? compositeKey.split(":", 1)[0] : undefined,
     composite_key: compositeKey,
   };
 }
@@ -127,6 +129,7 @@ function bindingToIdFields(
     task_id: binding.taskId,
     user_key: binding.userKey,
     space_id: spaceId,
+    agent_source: agentSource,
     composite_key: `${agentSource}:${sessionId}`,
   };
 }

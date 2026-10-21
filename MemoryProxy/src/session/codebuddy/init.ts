@@ -96,6 +96,8 @@ export interface SessionInitResult {
   messages?: Record<string, unknown>[];
   sessionInfo?: import("../types.js").SessionInfo | null;
   justRegistered?: boolean;
+  /** Whether this initialization was triggered by a session reset. */
+  resetFlow?: boolean;
   agentDetail?: AgentDetail | null;
   taskDetail?: TaskDetail | null;
   /**

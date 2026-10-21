@@ -34,7 +34,7 @@ import {
 import { hasCostGuardMarker, matchWhitelistEndpoint } from "./routes/whitelist.js";
 import { writeRequestLog } from "./requestLog.js";
 import { prepareUpstreamRequest, notifyUpstreamResponse } from "./request-prepare-adapter.js";
-import { tryReportCreditFromPath, extractSpaceIdFromPath } from "./credit-reporter.js";
+import { type CreditReportOutcome, tryReportCreditFromPath, extractSpaceIdFromPath } from "./credit-reporter.js";
 import {
   getInstanceUpstreamConfigs,
   resolveUpstreamConfig,
@@ -54,7 +54,7 @@ import type { TdaiIdentity, TdaiMessage } from "./tdai/types.js";
 import { triggerSkillExtractIfReady } from "./skill/handler-glue.js";
 import { emitModelIntentTelemetry } from "./session/model-intent-telemetry.js";
 import { isExtractionAllowed, logExtractionSkipped } from "./extraction-gate.js";
-import type { CcRequestKind } from "./common/cc-request-classifier.js";
+import type { RequestKind } from "./agent-adapters/types.js";
 import { buildRequestDebugMetadata } from "./common/langfuse-debug.js";
 import { resolveAgentAdapter } from "./agent-adapters/index.js";
 import {
@@ -571,7 +571,7 @@ export async function handleAnthropicMessages(
     ? _pathPartsEarly[0] : undefined;
   const agentAdapter = resolveAgentAdapter(_agentFromPathEarly ?? "claude-code");
   const ccRoutingEnabled = config.ccRequestRouting?.enabled === true;
-  const requestKind: CcRequestKind = ccRoutingEnabled ? agentAdapter.classifyRequest(body) : "main";
+  const requestKind: RequestKind = ccRoutingEnabled ? agentAdapter.classifyRequest(body) : "main";
 
   // ── Model gate: reject requests whose `model` is not a registered display name ──
   // 价目表已配置时，客户端 `model` 必须匹配某条 entry 的 `modelName`（展示名，
@@ -709,13 +709,14 @@ export async function handleAnthropicMessages(
         // ── 强制归档旧 agent 的 skill buffer（best-effort）──
         const oldState = store.get(compositeKey);
         if (oldState?.status === "initialized" && oldState.sessionInfo && config.coreSkill?.endpoint) {
-          const si = oldState.sessionInfo as Record<string, string>;
-          if (si.space_id && si.user_id && si.team_id && si.agent_id) {
+          const si = oldState.sessionInfo;
+          const archiveSpaceId = si.space_id;
+          if (archiveSpaceId && si.user_id && si.team_id && si.agent_id) {
             import("./skill/core-client.js").then(({ getCoreSkillClient }) => {
               const client = getCoreSkillClient(config.coreSkill!);
               client.forceArchive(
                 {
-                  space_id: si.space_id,
+                  space_id: archiveSpaceId,
                   user_id: si.user_id,
                   team_id: si.team_id,
                   agent_id: si.agent_id,
@@ -723,7 +724,7 @@ export async function handleAnthropicMessages(
                   task_id: si.task_id || undefined,
                   reason: "session-reset",
                 },
-                { serviceId: si.space_id },
+                { serviceId: archiveSpaceId },
               ).then((res) => {
                 console.log(`[session-reset] force-archive old buffer: status=${res.status} session=${sessionKey} agent=${si.agent_id}`);
               }).catch((err) => {
@@ -967,7 +968,7 @@ export async function handleAnthropicMessages(
         body = { ...body, system: appendBlockToAnthropicSystem(body.system, initResult.systemAppend) };
       }
 
-      sessionInfo = initResult.sessionInfo as Record<string, unknown> | null | undefined;
+      sessionInfo = initResult.sessionInfo;
       // Legacy sessions persisted before space_id was tracked will hydrate
       // with an empty space_id. Restore it from the URL each request so
       // downstream skill / knowledge / injection paths route to the correct
@@ -982,12 +983,12 @@ export async function handleAnthropicMessages(
           agentName: initResult.agentDetail?.name ?? "Unknown",
           // agentIdShort 字段名沿用历史，但此处**存完整 agent_id**（如 agt-1celthr7yn）。
           // 之前 slice(-8) 会截断成 "elthr7yn" 用户看不懂，与 team 截断问题对称。
-          agentIdShort: (initResult.sessionInfo as Record<string, unknown>)?.agent_id
-            ? String((initResult.sessionInfo as Record<string, unknown>).agent_id) : "",
+          agentIdShort: initResult.sessionInfo?.agent_id
+            ? String(initResult.sessionInfo.agent_id) : "",
           // teamName + 完整 teamId：见 handler.ts 对称注释。
           teamName: initResult.teamName ?? undefined,
-          teamId: (initResult.sessionInfo as Record<string, unknown>)?.team_id
-            ? String((initResult.sessionInfo as Record<string, unknown>).team_id) : "",
+          teamId: initResult.sessionInfo?.team_id
+            ? String(initResult.sessionInfo.team_id) : "",
           taskName: initResult.taskDetail?.name,
         };
       }
@@ -1987,7 +1988,7 @@ interface AnthropicTapContext {
   /** Upstream response header `x-request-id` (empty when not returned). */
   upstreamRequestId?: string;
   /** CC 请求分流类别，决定 stream 完成后是否触发 skill/L0 副作用。 */
-  requestKind: CcRequestKind;
+  requestKind: RequestKind;
   /** `config.langfuse.debug === true` 的求值结果，透传避免流内重复读 config。 */
   langfuseDebug: boolean;
   /** buildRequestDebugMetadata 求值结果；debug=false 时为 {}。 */
@@ -2216,7 +2217,7 @@ function consumeAnthropicStream(stream: ReadableStream<Uint8Array>, ctx: Anthrop
 
       // Credit usage reporting for streaming responses.
       (ctx.skipCreditReport
-        ? Promise.resolve({ attempted: false, ok: false })
+        ? Promise.resolve<CreditReportOutcome>({ attempted: false, ok: false })
         : tryReportCreditFromPath(
             ctx.config.creditReport,
             ctx.requestPath,

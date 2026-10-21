@@ -33,7 +33,7 @@ import {
 import { hasCostGuardMarker, matchWhitelistEndpoint } from "./routes/whitelist.js";
 import { writeRequestLog } from "./requestLog.js";
 import { prepareUpstreamRequest, notifyUpstreamResponse } from "./request-prepare-adapter.js";
-import { tryReportCreditFromPath, extractSpaceIdFromPath } from "./credit-reporter.js";
+import { type CreditReportOutcome, tryReportCreditFromPath, extractSpaceIdFromPath } from "./credit-reporter.js";
 import {
   getInstanceUpstreamConfigs,
   resolveUpstreamConfig,
@@ -814,13 +814,14 @@ export async function handleChatCompletions(
         // reset 前旧 agent 累积的对话片段可能还没达到阈值，不 flush 会永久丢失。
         const oldState = store.get(compositeKey);
         if (oldState?.status === "initialized" && oldState.sessionInfo && config.coreSkill?.endpoint) {
-          const si = oldState.sessionInfo as Record<string, string>;
-          if (si.space_id && si.user_id && si.team_id && si.agent_id) {
+          const si = oldState.sessionInfo;
+          const archiveSpaceId = si.space_id;
+          if (archiveSpaceId && si.user_id && si.team_id && si.agent_id) {
             import("./skill/core-client.js").then(({ getCoreSkillClient }) => {
               const client = getCoreSkillClient(config.coreSkill!);
               client.forceArchive(
                 {
-                  space_id: si.space_id,
+                  space_id: archiveSpaceId,
                   user_id: si.user_id,
                   team_id: si.team_id,
                   agent_id: si.agent_id,
@@ -828,7 +829,7 @@ export async function handleChatCompletions(
                   task_id: si.task_id || undefined,
                   reason: "session-reset",
                 },
-                { serviceId: si.space_id },
+                { serviceId: archiveSpaceId },
               ).then((res) => {
                 console.log(`[session-reset] force-archive old buffer: status=${res.status} session=${sessionKey} agent=${si.agent_id}`);
               }).catch((err) => {
@@ -1088,7 +1089,7 @@ export async function handleChatCompletions(
         messages = initResult.messages as unknown[];
       }
 
-      sessionInfo = initResult.sessionInfo as Record<string, unknown> | null | undefined;
+      sessionInfo = initResult.sessionInfo;
       // Belt-and-suspenders: also restore on the local `sessionInfo` alias.
       // In practice this is the same object reference as
       // `initResult.sessionInfo` (already restored above), but the second
@@ -1103,14 +1104,14 @@ export async function handleChatCompletions(
           // agentIdShort 字段名沿用历史，但此处**存完整 agent_id**（如 agt-1celthr7yn）。
           // 之前 slice(-8) 只留后 8 位会显示成 "elthr7yn" 这种截断串，用户完全看不懂，
           // 与 team 截断问题同源。agent id 本身就短，全量展示无害且更可读。
-          agentIdShort: (initResult.sessionInfo as Record<string, unknown>)?.agent_id
-            ? String((initResult.sessionInfo as Record<string, unknown>).agent_id) : "",
+          agentIdShort: initResult.sessionInfo?.agent_id
+            ? String(initResult.sessionInfo.agent_id) : "",
           // teamName 来自 session-init（cachedTeams[selected].team_name）；
           // teamId 存**完整** team_id（如 team-wyuyb7sion）—— 之前 slice(-8)
           // 会显示成 "uyb7sion" 用户看不懂，且 teamName 为空时兜底更差。
           teamName: initResult.teamName ?? undefined,
-          teamId: (initResult.sessionInfo as Record<string, unknown>)?.team_id
-            ? String((initResult.sessionInfo as Record<string, unknown>).team_id) : "",
+          teamId: initResult.sessionInfo?.team_id
+            ? String(initResult.sessionInfo.team_id) : "",
           taskName: initResult.taskDetail?.name,
         };
       }
@@ -2338,7 +2339,7 @@ function createUsageTapTransform(ctx: TapContext): TransformStream<Uint8Array, U
     // only be observed via server logs (no way to retro-add response headers).
     // skipCreditReport: instance config custom model → user's expense, skip credit.
     (ctx.skipCreditReport
-      ? Promise.resolve({ attempted: false, ok: false })
+      ? Promise.resolve<CreditReportOutcome>({ attempted: false, ok: false })
       : tryReportCreditFromPath(
           ctx.config.creditReport,
           ctx.requestPath,

@@ -220,8 +220,10 @@ export interface SessionRegistrationData {
  * Subset of the `POST /agent-sessions` response we consume.
  * The real backend returns more (created_at, updated_at, …) — we keep the
  * shape loose with `permissions` etc. optional so future fields don't break us.
+ * A type alias also lets this JSON object flow into Record<string, unknown>
+ * consumers without casts or an unrestricted index signature.
  */
-export interface SessionInfo {
+export type SessionInfo = {
   session_id: string;
   team_id: string;
   agent_id: string;
@@ -249,4 +251,4 @@ export interface SessionInfo {
     count: number;
     total_est_tokens: number;
   };
-}
+};

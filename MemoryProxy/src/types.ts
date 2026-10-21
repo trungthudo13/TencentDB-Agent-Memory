@@ -876,6 +876,7 @@ export interface RawYamlConfig {
     extractors?: string[];
   };
   sessionInit?: {
+    skipAssetConfirm?: boolean;
     enabled?: boolean;
     maxRetries?: number;
     injectAgentContext?: boolean;
@@ -946,6 +947,8 @@ export interface RawYamlConfig {
 
 /** request event — written when a request is intercepted (metadata only, no messages). */
 export interface RequestLogEntry {
+  /** Trace ID shared with the request pipeline. */
+  traceId?: string;
   timestamp: string;
   event: "request";
   modelId: string;
