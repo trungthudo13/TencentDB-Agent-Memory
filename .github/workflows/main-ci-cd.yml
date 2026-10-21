@@ -1,0 +1,205 @@
+name: Main CI and GHCR publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Serialize releases so an older run cannot overwrite a newer latest tag.
+concurrency:
+  group: main-ci-cd
+  cancel-in-progress: false
+
+jobs:
+  sources:
+    name: Build / ${{ matrix.name }}
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: memory-core
+            directory: MemoryCore
+            command: npm run build
+          - name: memory-proxy
+            directory: MemoryProxy
+            command: npm run typecheck
+          - name: memory-knowledge
+            directory: MemoryKnowledge
+            command: npm run build
+          - name: memory-panel
+            directory: MemoryPanel
+            command: npm run build
+          - name: memory-panel-web
+            directory: MemoryPanel/web
+            command: npm run build
+          - name: memory-acp
+            directory: MemoryAcp
+            command: npm test
+          - name: memory-sdk-typescript
+            directory: sdk/memory-core/typescript
+            command: npm run build
+    defaults:
+      run:
+        working-directory: ${{ matrix.directory }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Use npm 11 (matches production Dockerfiles)
+        run: npm install --global npm@11
+      - name: Install dependencies
+        shell: bash
+        run: |
+          # Core's optional OpenClaw peers pull unpublished workspace packages.
+          # Match its Dockerfile's omission of those peers in this disposable checkout.
+          if [[ "$PWD" == */MemoryCore ]]; then
+            node -e 'const fs = require("fs"); const p = JSON.parse(fs.readFileSync("package.json")); delete p.peerDependencies; delete p.peerDependenciesMeta; fs.writeFileSync("package.json", JSON.stringify(p, null, 2));'
+          fi
+          if [[ -f package-lock.json ]]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
+      - name: Build or check sources
+        run: ${{ matrix.command }}
+
+  python:
+    name: Build Python packages and test memagent
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install build tools and CLI
+        run: python -m pip install build ./tools/memagent
+      - name: Test memagent
+        run: python -m unittest discover -s tools/memagent/tests -v
+      - name: Build wheels and source distributions
+        run: |
+          python -m build sdk/memory-core/python
+          python -m build tools/memagent
+      - name: Smoke test installed wheels
+        run: |
+          python -m pip install --force-reinstall sdk/memory-core/python/dist/*.whl tools/memagent/dist/*.whl
+          python -c 'from tencentdb_agent_memory.v3 import MemoryClient'
+          memagent init --help
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-packages
+          path: |
+            sdk/memory-core/python/dist/*
+            tools/memagent/dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  images:
+    name: Build image / ${{ matrix.name }}
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: memory-core
+            context: MemoryCore
+            dockerfile: MemoryCore/Dockerfile
+          - name: memory-proxy
+            context: MemoryProxy
+            dockerfile: MemoryProxy/Dockerfile
+          - name: memory-knowledge
+            context: MemoryKnowledge
+            dockerfile: MemoryKnowledge/Dockerfile
+          - name: memory-panel
+            context: MemoryPanel
+            dockerfile: MemoryPanel/docker/local/Dockerfile.local
+          - name: memory-acp
+            context: MemoryAcp
+            dockerfile: MemoryAcp/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image once for CI and CD
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: false
+          tags: memagent-ci/${{ matrix.name }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          outputs: type=docker,dest=${{ runner.temp }}/image.tar
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+      - name: Upload exact image for publishing
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ matrix.name }}
+          path: ${{ runner.temp }}/image.tar
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish images to GHCR
+    needs: [sources, python, images]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+      actions: read
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # Download/publish/remove one image at a time to limit runner disk usage.
+      - name: Publish the built image artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          COMMIT_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_prefix="ghcr.io/${GH_REPO,,}"
+          names=(memory-core memory-proxy memory-knowledge memory-panel memory-acp)
+          # Upload all immutable commit tags before updating any moving tags.
+          for name in "${names[@]}"; do
+            artifact_dir="${RUNNER_TEMP}/publish-${name}"
+            gh run download "$RUN_ID" --name "image-${name}" --dir "$artifact_dir"
+            docker load --input "$artifact_dir/image.tar"
+            source_image="memagent-ci/${name}:${COMMIT_SHA}"
+            target_image="${image_prefix}/${name}:sha-${COMMIT_SHA}"
+            docker tag "$source_image" "$target_image"
+            docker push "$target_image"
+            docker image rm "$source_image" "$target_image"
+            rm -rf "$artifact_dir"
+          done
+          for name in "${names[@]}"; do
+            image="${image_prefix}/${name}"
+            docker buildx imagetools create \
+              --tag "${image}:latest" --tag "${image}:main" \
+              "${image}:sha-${COMMIT_SHA}"
+            # Backticks are literal Markdown in the Actions summary.
+            # shellcheck disable=SC2016
+            printf -- '- `%s:sha-%s` (`main`, `latest`)\n' "$image" "$COMMIT_SHA" >> "$GITHUB_STEP_SUMMARY"
+          done

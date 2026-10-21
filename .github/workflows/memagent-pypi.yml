@@ -1,0 +1,75 @@
+name: Publish memagent to PyPI
+
+on:
+  push:
+    tags: ['memagent-v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: memagent-pypi-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Test and build distributions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify release commit belongs to main
+        run: git merge-base --is-ancestor HEAD origin/main
+      - name: Verify tag matches package version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import os
+          import pathlib
+          import tomllib
+          project = tomllib.loads(pathlib.Path('tools/memagent/pyproject.toml').read_text())['project']
+          expected = 'memagent-v' + project['version']
+          if os.environ['RELEASE_TAG'] != expected:
+              raise SystemExit(f'Release tag must match pyproject.toml: {expected}')
+          PY
+      - name: Install build tools
+        run: python -m pip install build twine
+      - name: Build wheel and source distribution
+        run: python -m build tools/memagent
+      - name: Validate PyPI metadata
+        run: python -m twine check --strict tools/memagent/dist/*
+      - name: Test installed wheel
+        run: |
+          python -m pip install tools/memagent/dist/*.whl
+          python -m unittest discover -s tools/memagent/tests -v
+          memagent init --help
+      - uses: actions/upload-artifact@v4
+        with:
+          name: memagent-distributions
+          path: tools/memagent/dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/project/memagent/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: memagent-distributions
+          path: dist/
+      - name: Publish with PyPI Trusted Publishing
+        uses: pypa/gh-action-pypi-publish@release/v1
