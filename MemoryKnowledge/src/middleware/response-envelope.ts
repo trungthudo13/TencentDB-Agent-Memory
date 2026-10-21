@@ -29,7 +29,13 @@ function pickReqFields(body: unknown): Record<string, unknown> {
   return out;
 }
 
-export function accessLog(): MiddlewareHandler {
+export interface AccessLogOptions {
+  /** Transports owning the raw stream must receive it unread (e.g. MCP). */
+  skipBodyPaths?: readonly string[];
+}
+
+export function accessLog(options: AccessLogOptions = {}): MiddlewareHandler {
+  const skipBodyPaths = new Set(options.skipBodyPaths ?? []);
   return async (c, next) => {
     const t0 = Date.now();
     const route = `${c.req.method} ${c.req.path}`;
@@ -41,7 +47,7 @@ export function accessLog(): MiddlewareHandler {
     // 缓存 request body（body 只能读一次，失败时用于日志）
     // c.req.text() caches its own result; cache parsed JSON for downstream routes.
     let reqBody: unknown = undefined;
-    if (c.req.method === 'POST' || c.req.method === 'PUT') {
+    if (!skipBodyPaths.has(c.req.path) && (c.req.method === 'POST' || c.req.method === 'PUT')) {
       try {
         const raw = await c.req.text();
         reqBody = raw ? JSON.parse(raw) : undefined;

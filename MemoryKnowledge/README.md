@@ -33,7 +33,7 @@ MemoryKnowledge/
 │   │   └── code/           # CodeGraph bridge
 │   ├── store/              # SQLite（Drizzle）+ 构建队列 + llm_binding
 │   ├── source-fetcher/     # Git 拉取
-│   ├── mcp/                # MCP stdio（转发到本机 HTTP API）
+│   ├── mcp/                # MCP stdio + Streamable HTTP（/mcp）
 │   ├── db/                 # schema / client
 │   └── middleware/
 ├── docs/                   # 设计与 API 细节
@@ -95,6 +95,16 @@ pnpm typecheck
 pnpm test
 pnpm build        # tsdown → dist/
 ```
+
+## Kết nối MCP cho Agent
+
+Knowledge Service cung cấp **Streamable HTTP tại `http://127.0.0.1:8421/mcp`**
+ngay trong tiến trình HTTP hiện tại; Docker Compose không cần container hay cổng riêng.
+Mỗi request cần header `x-tdai-service-id`; nếu cấu hình `KNOWLEDGE_SERVICE_KEY`,
+cần thêm `Authorization: Bearer <service key>`.
+
+Xem [hướng dẫn MCP](MCP.md) để cấu hình client, xác thực, kiểm tra 12 tools
+CodeGraph/Wiki và dùng stdio khi client chưa hỗ trợ Streamable HTTP.
 
 ## 可选：ClickHouse 工具调用埋点
 

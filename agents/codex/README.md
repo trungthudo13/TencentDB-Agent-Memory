@@ -1,25 +1,82 @@
-# Codex
+# Codex — local project setup
 
-> agentSource: `codex` | Protocol: OpenAI Responses API | Handler: `codexHandler.ts` (dedicated)
->
-> To import local history into Memory Hub, see the [asset import guide](./asset-import.md).
+Connect the Codex CLI to local MemoryProxy and Knowledge MCP. Keys are written
+directly into a private config file inside the project. No memagent is required.
+This guide uses Bash and an already installed Codex CLI.
 
----
+Codex ignores provider routing keys in an ordinary project `.codex/config.toml`.
+Use a separate **project-local Codex home**, `.codex-local/`, and select it on
+each invocation. This makes its `config.toml` the active home configuration
+without changing settings for other projects. Config, login, and sessions live
+under this directory when file-based credentials are selected.
+See OpenAI's [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference)
+and [CODEX_HOME documentation](https://learn.chatgpt.com/docs/config-file/environment-variables).
 
-## 1. Client configuration
+## Step 1 — Start the local services
 
-### 1.1 ChatGPT subscription + Memory Hub
+These instructions assume the Docker stack has already been configured in
+`docker/.env`. From the **self_agent_memory repository root**, run:
 
-Use this setup when Codex already works with **Sign in with ChatGPT**. Each
-person keeps their own ChatGPT login and uses their own Memory Hub `user_key`.
-The proxy does not need an LLM API key for this flow.
+```bash
+docker compose -f docker/docker-compose.yml up -d --build memory memory-panel memory-proxy knowledgebase
+curl -fsS http://127.0.0.1:8096/health
+curl -fsS http://127.0.0.1:8421/health
+```
 
-Edit the user-level **`~/.codex/config.toml`**, merging into existing tables
-rather than duplicating them. Keep your current `model` and reasoning settings.
-Place `model_provider` at the top level, before any `[table]`:
+The defaults are Panel `8125`, MemoryProxy `8096`, and Knowledge `8421`.
+Adjust the client URLs below if you changed those ports. The client and Docker
+stack must run on the same machine for these loopback URLs to work.
+
+In `docker/memory-proxy.yaml`, check that `auth.enabled`,
+`sessionInit.enabled`, `extraction.enabled`, `tdai.enabled`, and
+`tdai.memory.writeL0` are `true` for conversation capture. Recall also needs
+`injection.enabled` and `tdai.memory.inject`. These flags are enabled in the
+current configuration. Keep the existing MemoryCore endpoints and service-token
+settings. If MemoryCore uses a gateway key, configure the matching
+`MEMORY_CORE_GATEWAY_API_KEY` in `docker/.env`.
+
+After editing YAML, restart `memory-proxy`. After editing `.env`, recreate it
+with `docker compose -f docker/docker-compose.yml up -d --force-recreate memory-proxy`.
+A healthy proxy alone does not prove that model requests or capture work.
+
+## Step 2 — Collect your local connection values
+
+Open Memory Hub at <http://127.0.0.1:8125> and obtain:
+
+- Your Memory Hub **user key**.
+- A **team ID** you can access and an **agent ID** belonging to that team.
+- Optionally, a task ID belonging to the same team.
+- The Knowledge service key, if `KNOWLEDGE_SERVICE_KEY` is set in `docker/.env`.
+
+Use IDs rather than display names. The Memory user key, Knowledge service key,
+and model credential serve different purposes. The proxy removes
+`x-tdai-user-key` before forwarding to the model and preserves model authentication.
+`default` in the proxy URL is the memory instance ID, not the team ID.
+The MCP `x-tdai-service-id` must match the tenant containing your Knowledge assets.
+
+## Step 3 — Create a private Codex home in your working project
+
+Switch to the **project you want Codex to work on**, which may be different from
+the self_agent_memory checkout:
+
+```bash
+cd /path/to/your/project
+mkdir -p .codex-local
+chmod 700 .codex-local
+```
+
+For a Git project, add `/.codex-local/` to its local Git exclude file
+(`git rev-parse --git-path info/exclude`). This directory will contain literal
+keys and login state; keep it out of commits.
+
+Create or merge into `.codex-local/config.toml`:
 
 ```toml
+# Top-level settings must appear before the first [table].
 model_provider = "memory_proxy"
+cli_auth_credentials_store = "file"
+# Optional: set model to an ID available to your ChatGPT account.
+# model = "<YOUR_MODEL_ID>"
 
 [model_providers.memory_proxy]
 name = "Local MemoryProxy"
@@ -29,296 +86,116 @@ requires_openai_auth = true
 supports_websockets = false
 stream_idle_timeout_ms = 120000
 
-[model_providers.memory_proxy.env_http_headers]
-x-tdai-user-key = "MEMORY_USER_KEY"
-
 [model_providers.memory_proxy.http_headers]
-x-team-id = "<team_id from Memory Hub>"
-x-agent-id = "<agent_id belonging to that team>"
-# Optional: omit this line when no task is needed.
-# x-task-id = "<task_id belonging to that team>"
+x-tdai-user-key = "<MEMORY_HUB_USER_KEY>"
+x-team-id = "<TEAM_ID>"
+x-agent-id = "<AGENT_ID>"
+# x-task-id = "<TASK_ID>"
 ```
 
-`MEMORY_USER_KEY` above is the **environment variable name**, not the key itself.
-For Bash, enter your Memory Hub user key without putting it in shell history,
-then launch Codex from that same terminal:
+Replace the placeholders directly in this file. No `MEMORY_USER_KEY`
+environment variable or `env_http_headers` table is needed. Valid team and agent
+headers register the session without a selection form. If you omit them or they
+are invalid, initialize in **Plan mode** so the selection form can run.
+
+This setup uses your **ChatGPT login** for model authentication. Keep the proxy's
+`upstream.agents.codex.url` set to `https://chatgpt.com/backend-api/codex` and its
+`apiKey` empty. HTTP/SSE is used because this proxy does not forward WebSockets.
+Do not put the Memory user key in `experimental_bearer_token`.
+
+## Step 4 — Add MCP to the same local config
+
+Append this table to `.codex-local/config.toml` (merge if already present):
+
+```toml
+[mcp_servers.memory_knowledge]
+url = "http://127.0.0.1:8421/mcp"
+http_headers = { "x-tdai-service-id" = "default" }
+```
+
+If Knowledge has a service key, **replace** the `http_headers` line with:
+
+```toml
+http_headers = { "x-tdai-service-id" = "default", "Authorization" = "Bearer <KNOWLEDGE_SERVICE_KEY>" }
+```
+
+Replace the placeholder with the literal server key. No OAuth login is needed
+for this MCP server. Codex supports static HTTP headers for Streamable HTTP
+servers; see [OpenAI MCP configuration](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
 
 ```bash
-read -r -s -p "Memory Hub user key: " MEMORY_USER_KEY
-printf '\n'
-export MEMORY_USER_KEY
-codex
+chmod 600 .codex-local/config.toml
 ```
 
-For an IDE or desktop app, the process launching Codex must inherit this variable;
-exporting it in an unrelated terminal will not update an already running app.
-**Start a new agent session after changing the configuration or environment.**
-Existing sessions may retain their previous provider and identity settings.
+## Step 5 — Sign in and launch with the local home
 
-The resulting request carries two separate credentials:
+From the same working project, sign in once for this isolated Codex home:
 
-| Header | Purpose |
+```bash
+env CODEX_HOME="$PWD/.codex-local" codex login
+env CODEX_HOME="$PWD/.codex-local" codex login status
+```
+
+Choose ChatGPT login. An existing login in a different Codex home is not
+implicitly copied here. Then check the MCP entry and start a new session:
+
+```bash
+env CODEX_HOME="$PWD/.codex-local" codex mcp list
+env CODEX_HOME="$PWD/.codex-local" codex
+```
+
+Use that launch command every time from the project root. A plain `codex`
+command does not select this isolated home. Start a fresh session after changing
+provider, key, or team/agent values. This walkthrough targets the CLI; an IDE or
+desktop process must also be launched with the same absolute `CODEX_HOME` to
+use this configuration.
+
+## Step 6 — Verify model routing, memory, and MCP separately
+
+1. Send a normal message and confirm the model responds through MemoryProxy.
+2. Check Chat Memory in the Panel under the configured team and agent after the
+   response finishes. A model response alone does not prove capture succeeded.
+3. Run `/mcp` in the client and check that `memory_knowledge` connects and exposes
+   12 tools: eight CodeGraph tools and four Wiki tools.
+4. Register and index a repository or Wiki through the Panel/API. Then ask:
+   “Use code_status for CodeGraph `<CODE_GRAPH_ID>`, then use code_search to find
+   the authentication code.” For Wiki, supply its wiki ID and ask for wiki_search.
+
+MCP provides read tools for CodeGraph/Wiki. It does not create/index assets or
+provide the proxy's `mem:*` commands. You can use MCP independently of model
+routing through MemoryProxy.
+
+From the **self_agent_memory repository root**, inspect service logs if needed:
+
+```bash
+docker compose -f docker/docker-compose.yml logs --tail=100 memory-proxy knowledgebase
+```
+
+| Symptom | Check |
 | --- | --- |
-| `Authorization` | Codex supplies its ChatGPT login token for the model upstream. |
-| `x-tdai-user-key` | Your Memory Hub identity, used for verification and memory operations; stripped before forwarding to the model. |
-
-Do not set `experimental_bearer_token` to a Memory key for this subscription
-setup. The proxy upstream should be `https://chatgpt.com/backend-api/codex` with
-`upstream.apiKey: ""`, preserving the caller's model authentication.
-
-`default` in the URL is the **memory instance ID**, not the team ID.
-`127.0.0.1` works when the proxy runs on the same machine as Codex. For a shared
-proxy, use the reachable gateway URL supplied by your administrator, including
-`/codex/default/v1`. Everyone can share that URL while using individual user keys.
-
-Codex configuration references: [ChatGPT login through a gateway](https://learn.chatgpt.com/docs/enterprise/sign-in-with-chatgpt-through-a-gateway)
-and [provider settings](https://learn.chatgpt.com/docs/config-file/config-reference).
-
-### 1.2 Select a team, agent, and optional task
-
-Use actual **IDs**, not display names. Obtain them from Memory Hub or your
-administrator. `x-agent-id` identifies a Memory Hub agent record, not a Codex
-process or a model name. Each user must have access to the selected team.
-
-The proxy validates these headers against the teams, agents, and tasks visible
-to the authenticated Memory Hub user:
-
-| Supplied headers | Session initialization behavior |
-| --- | --- |
-| Valid `x-team-id` + `x-agent-id` | Registers the session directly, without the selection form; task is optional. |
-| Only `x-team-id` | Preselects the team; remaining selections use the form. |
-| No team header | Uses the interactive selection flow. |
-| Unknown/inaccessible team or agent | Falls back to the form by default (`onMismatch: form`). |
-| Unknown task with valid team + agent | Drops the task and registers without a task association. |
-
-Headers take effect when initializing a session with `sessionInit.enabled: true`
-and `sessionInit.headerAutoSelect.enabled: true` (header auto-selection defaults
-to enabled). Start a new session when switching teams or agents.
-
-**If the form is needed, switch Codex to Plan mode before the first message.**
-Default mode blocks `request_user_input`; the proxy may then skip initialization
-and cannot capture L0 without a complete session identity. With valid team and
-agent headers, direct registration avoids this form requirement.
-
-### 1.3 Administrator: enable chat memory capture
-
-Routing a model call through the proxy does **not** by itself enable chat memory.
-The initial [Docker configuration](../../docker/memory-proxy.yaml) disables
-capture. In that file, merge these settings into the existing sections:
-
-```yaml
-auth:
-  enabled: true
-sessionInit:
-  enabled: true
-  headerAutoSelect:
-    enabled: true
-    onMismatch: form
-extraction:
-  enabled: true
-  extractors: [tdai-memory]
-tdai:
-  enabled: true
-  memory:
-    enabled: true
-    writeL0: true
-```
-
-Keep the existing endpoints and service-token settings. The internal
-`MEMORY_CORE_GATEWAY_API_KEY` in `docker/.env` is a server credential; it is
-separate from each person's `MEMORY_USER_KEY`. See the [Docker guide](../../docker/GUIDE.md#separate-memory-identity-from-model-authentication)
-for those settings. Injection/recall is configured separately from L0 capture.
-
-After editing the YAML, restart the proxy from the repository root:
-
-```bash
-docker compose -f docker/docker-compose.yml restart memory-proxy
-```
-
-If `docker/.env` changed, recreate the container to load the new environment:
-
-```bash
-docker compose -f docker/docker-compose.yml up -d --no-deps --force-recreate memory-proxy
-```
-
-Open a new Codex session, send a message, wait for the answer, then check Chat
-Memory in Memory Hub under the selected team and agent. If no record appears,
-check the capture flags, user-key verification, and session registration in:
-
-```bash
-docker compose -f docker/docker-compose.yml logs --tail=100 memory-proxy
-```
-
-A successful model response or `/health` check alone does not confirm L0 capture.
-
-### 1.4 Legacy proxy-managed model authentication
-
-Older deployments may use `experimental_bearer_token = "<Memory Hub user_key>"`
-when the proxy separately supplies the model's upstream credential. When
-`x-tdai-user-key` is absent, MemoryProxy falls back to that original credential
-for Memory authentication. An explicitly empty Memory header does not fall back.
-Use section 1.1 for ChatGPT subscription passthrough.
-
-Request paths:
-- `POST /codex/:spaceId/v1/responses`
-- `POST /codex/:spaceId/responses` (without the v1 prefix; also accepted)
-
-Auxiliary paths:
-- `/codex/:spaceId/responses/compact` — Compaction requests
-- `/codex/:spaceId/memories/trace_summarize` — Trace summaries
-- `/codex/:spaceId/realtime/calls` — Realtime calls
-
----
-
-## 2. Session ID
-
-| Priority | Source |
-|--------|------|
-| 1 | `session-id` header |
-| 2 | `body.client_metadata.session_id` |
-
-Codex CLI automatically generates session_id and writes it to both header and body. No manual configuration is needed.
-
----
-
-## 3. Session Init (session initialization / form)
-
-### 3.1 Mechanism
-
-Codex uses a **`request_user_input`** function_call to present an interactive form:
-
-- Tool name: `request_user_input`
-- ID prefix: `fc_codex_session_init_` (⚠️ the `fc_` prefix is mandatory and strictly validated by the OpenAI Responses specification)
-- Call ID prefix: `call_codex_session_init_`
-- Protocol: OpenAI Responses API SSE (`response.created` / `response.output_item.*` / `response.completed` events)
-
-### 3.2 State machine
-
-Reuses the CB state machine with `agentSource="codex"`, `protocol="responses"` markers:
-
-```
-asset_confirm → team_select → agent_task_select → initialized
-```
-
-### 3.3 Pagination
-
-Codex uses dedicated `computeCodexPagination` logic, with rules similar to CC (limited option count) but a separate implementation.
-
-### 3.4 ⚠️ Default Mode Gate (key difference)
-
-Codex has two operating modes:
-- **Plan mode** — `request_user_input` is available → normal form flow
-- **Default mode** — the client blocks `request_user_input` calls
-
-**Default mode detection**: after the proxy sends a form, the client's `function_call_output.output` contains:
-
-```
-"request_user_input is unavailable in Default mode"
-```
-
-When the proxy detects this gate string → **permanently skip** session-init and pass all subsequent requests through.
-
-### 3.5 Skipping Session Init
-
-Three ways:
-1. Default mode gate triggers automatically → permanent skip
-2. User manually enters "skip"
-3. Select "No" at asset_confirm
-
----
-
-## 4. Request classification
-
-Codex uses **three signals** to identify auxiliary requests:
-
-| Signal | Check |
-|------|----------|
-| Path suffix | `/compact`, `/memories/trace_summarize`, `/realtime/calls` |
-| Header | `x-openai-memgen-request: true` |
-| Body | `body.client_metadata.thread_source` ≠ `"main"` |
-
-Any matching signal → classify as auxiliary → skip injection/archiving.
-
----
-
-## 5. User text extraction
-
-Extract from the `body.input[]` array:
-1. Find the last item with `type: "message"` and `role: "user"`
-2. Extract text from all `input_text` blocks in its `content[]`
-3. Concatenate them into the final user text
-
-⚠️ Codex's body structure differs completely from Chat Completions (`input[]` rather than `messages[]`).
-
----
-
-## 6. Injection profile
-
-Uses the Codex specific injection builder `buildCodexInjectionBlock`:
-
-```
-Injection into the instructions field (rather than messages/input)
-```
-
-Codex's injection point is `body.instructions` (the Responses API equivalent of a system prompt).
-
----
-
-## 7. Special behavior
-
-- **Dedicated handler**: `codexHandler.ts`, not shared with CB/CC
-- **Mandatory fc_ prefix**: OpenAI Responses API function_call IDs must start with `fc_`; otherwise client replay returns 400
-- **Marker routes**: `/codex/:spaceId/cost-guard/responses` and `/codex/:spaceId/analyse/responses` support cost-guard/analyse routing
-- **Archiving hook**: Codex's `skill/conversation/add` + TDAI L0 writes were added on 2026-08-11 (data was previously lost silently)
-
----
-
-## 8. Archiving triggers
-
-- Conversations exceeding thresholds automatically trigger `skill/conversation/add` (through the responses branch of `normalize-conversation`)
-- Supports `skill/conversation/force-archive`
-- Codex archiving requires `normalizeCodexConversation` to convert conversations into the unified format
-
----
-
-## 9. Environment variables
-
-```env
-PROXY_PORT=8096
-# Docker: model upstream for ChatGPT subscription passthrough
-PROXY_UPSTREAM_URL=https://chatgpt.com/backend-api/codex
-# Client process: each person's Memory Hub key
-MEMORY_USER_KEY=<your own Memory Hub user_key>
-```
-
-The model must be available to the caller's upstream account. Other deployments
-can use different upstreams; their authentication and model availability depend
-on that upstream's configuration.
-
----
-
-## 10. FAQ
-
-**Q: Does Codex Default mode have no memory injection at all?**  
-A: Default mode blocks the interactive selection form. Supply valid team and agent headers to register directly, or initialize through the form in Plan mode. Memory capture and injection also depend on their respective proxy settings.
-
-**Q: What is the fc_ prefix issue?**  
-A: OpenAI Responses API validates function_call IDs with a regular expression requiring `fc_`. Proxy forms use `fc_codex_session_init_` for id and retain `call_` for call_id. Before the fix, the fifth replay request from the Codex client always returned 400.
-
-**Q: What is Codex's /compact request?**  
-A: Like CC conversation compaction, it is an auxiliary request triggered automatically by the client and does not need injection/archiving.
-
-**Q: What code does Codex reuse from CB?**  
-A: Codex has a dedicated `codexHandler.ts`, but the underlying session-init state machine reuses CB's implementation with different agentSource + protocol arguments.
-
----
-
-## 11. Differences from Claude Code / CodeBuddy
-
-| Dimension | Claude Code | CodeBuddy | Codex |
-|------|-------------|-----------|-------|
-| Protocol | Anthropic Messages | OpenAI Chat Completions | **OpenAI Responses** |
-| Configuration file | Environment variables | `~/.codebuddy/models.json` | `~/.codex/config.toml` |
-| URL prefix | `/claude-code/<spaceId>` | `/codebuddy/<spaceId>` | `/codex/<spaceId>` |
-| Key delivery | env `ANTHROPIC_AUTH_TOKEN` | JSON `apiKey` | `x-tdai-user-key` via `env_http_headers` (subscription); legacy bearer token |
-| Session init | Automatic form | Automatic form | **Team/agent headers, or Plan mode for the selection form** |
+| Proxy connection refused | Start `memory-proxy`; verify port `8096`. |
+| Memory authentication fails | Check the literal `x-tdai-user-key` value and the server's gateway key. |
+| Model authentication fails | Check the model login/credential separately from the Memory user key. |
+| No captured conversation | Check capture flags, user access, and successful team/agent session registration. Start a new session. |
+| MCP returns 404 | Rebuild `knowledgebase` and confirm `KNOWLEDGE_MCP_ENABLED=true`. |
+| MCP returns 401 | Match the MCP Authorization header to the server's Knowledge service key. |
+| MCP returns 403 | If the client sends Origin, add that exact origin to `KNOWLEDGE_MCP_ALLOWED_ORIGINS`. |
+| MCP connects but cannot find an asset | Check the asset ID, index status, and `x-tdai-service-id`. |
+
+Opening `/mcp` in a browser sends GET; 405 is expected after access checks.
+Use the client's MCP connection to test initialization and tool calls.
+See [Knowledge MCP](../../MemoryKnowledge/MCP.md) for transport details.
+
+## Adapter reference
+
+- Agent source: `codex`; handler: `MemoryProxy/src/codexHandler.ts`.
+- Protocol: OpenAI Responses; main route: `/codex/:spaceId/v1/responses`
+  (also accepted without `/v1`).
+- Session identity: `session-id`, then `body.client_metadata.session_id`.
+- Interactive selection uses `request_user_input`; Default mode can block it.
+  Valid team/agent headers avoid the form.
+- Memory is injected into `body.instructions`. Auxiliary compaction and trace
+  requests bypass the main injection/archiving flow.
+
+For optional historical imports, see [asset import](./asset-import.md). Point
+its scanner at this project's `.codex-local` home to import these sessions.

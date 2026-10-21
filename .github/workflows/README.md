@@ -1,44 +1,6 @@
 # CI/CD
 
-## Publish memagent lên PyPI
-
-`memagent-pypi.yml` publish wheel và sdist khi push tag `memagent-v<version>`.
-Workflow kiểm tra commit thuộc lịch sử `main`, version khớp `pyproject.toml`,
-metadata hợp lệ và tests chạy thành công trên wheel đã cài trước khi publish.
-Workflow `main-ci-cd.yml` vẫn build/test Python mỗi lần push `main`.
-
-Thiết lập một lần:
-
-1. Tạo GitHub Environment tên `pypi` trong repository; nếu giới hạn deployment
-   refs, cho phép tags `memagent-v*`.
-2. Trong PyPI → Publishing, thêm pending Trusted Publisher cho project mới
-   `memagent` (hoặc publisher trong project hiện có mà bạn có quyền quản lý).
-3. Chọn GitHub, điền owner và repository hiện tại, workflow filename
-   **`memagent-pypi.yml`**, environment **`pypi`**.
-
-Không cần API token trong GitHub Secrets: job publish dùng OIDC với
-`id-token: write`. Tên `memagent` phải thuộc quyền quản lý của bạn hoặc được
-PyPI chấp nhận tạo mới; nếu tên không khả dụng cần đổi `project.name` và thông
-tin publisher. Xem [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/using-a-publisher/).
-
-Phát hành sau khi commit đã push/merge vào `main`:
-
-```bash
-# Version hiện tại trong tools/memagent/pyproject.toml là 0.1.0.
-git tag memagent-v0.1.0
-git push origin memagent-v0.1.0
-```
-
-Sau khi workflow thành công:
-
-```bash
-pip install memagent
-memagent init --help
-```
-
-Mỗi bản phát hành phải tăng version trong `pyproject.toml` và dùng tag mới.
-PyPI không cho ghi đè distributions đã publish; không di chuyển tag cũ để
-phát hành lại nội dung khác. Workflow không publish SDK Python lên PyPI.
+CLI `memagent` không được build hoặc publish tự động trong GitHub Actions.
 
 ## Main pipeline
 
@@ -50,7 +12,7 @@ nhánh `main`. Workflow PR hiện có (`pr-ci.yml`) vẫn hoạt động riêng.
 - Node.js 22 / npm 11: build MemoryCore, MemoryKnowledge, MemoryPanel backend và
   web, SDK TypeScript; typecheck MemoryProxy (chạy TypeScript trực tiếp bằng tsx);
   chạy tests MemoryAcp (JavaScript, không cần transpile).
-- Python 3.11: test memagent, build wheel/sdist cho SDK Python và memagent,
+- Python 3.11: build wheel/sdist cho SDK Python,
   kiểm tra cài đặt wheel. Artifact `python-packages` giữ 7 ngày.
 - Build 5 Docker images từ các Dockerfile/context giống `docker/docker-compose.yml`,
   bao gồm đầy đủ Panel UI, kiến trúc `linux/amd64`. BuildKit cache theo service.
@@ -96,7 +58,7 @@ docker pull ghcr.io/<owner>/<repository>/memory-core:latest
 ```
 
 CD ở đây là publish lên registry; không restart hay deploy lên máy chủ.
-MongoDB dùng image upstream và không được build/publish lại. SDK và CLI Python
+MongoDB dùng image upstream và không được build/publish lại. SDK Python
 được build thành package artifacts, không có service Docker riêng. Các Dockerfile
 gộp service trong `deploy/` là cách đóng gói thay thế, không nằm trong workflow này.
 

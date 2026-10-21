@@ -1,2 +1,4 @@
 #!/usr/bin/env node
-import "../dist/server.js";
+import { startServer } from "../dist/server.mjs";
+
+await startServer();

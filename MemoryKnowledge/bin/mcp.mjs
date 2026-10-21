@@ -1,2 +1,4 @@
 #!/usr/bin/env node
-import "../dist/mcp/server.js";
+import { startMcpServer } from "../dist/mcp/server.mjs";
+
+await startMcpServer();

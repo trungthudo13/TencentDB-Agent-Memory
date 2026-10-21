@@ -26,10 +26,10 @@ function format(level: Level, tag: string, msg: string, data?: unknown) {
 export function createLogger(tag: string) {
   return {
     debug(msg: string, data?: unknown) {
-      if (shouldLog("debug")) console.log(format("debug", tag, msg, data));
+      if (shouldLog("debug")) console.error(format("debug", tag, msg, data));
     },
     info(msg: string, data?: unknown) {
-      if (shouldLog("info")) console.log(format("info", tag, msg, data));
+      if (shouldLog("info")) console.error(format("info", tag, msg, data));
     },
     warn(msg: string, data?: unknown) {
       if (shouldLog("warn")) console.warn(format("warn", tag, msg, data));

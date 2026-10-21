@@ -67,6 +67,12 @@ export interface ServiceConfig {
   auth: {
     serviceKey: string;
   };
+  /** Streamable HTTP MCP on /mcp, sharing this service's port and key. */
+  mcp: {
+    enabled: boolean;
+    /** Exact browser origins; requests without Origin are accepted. */
+    allowedOrigins: string[];
+  };
   /** Data root directory for knowledge assets (git clones, wiki dirs, SQLite). */
   dataDir: string;
   /** SQLite database file path. */
@@ -125,6 +131,22 @@ function envBool(key: string, fallback: boolean): boolean {
   return ["1", "true", "yes", "on"].includes(val.toLowerCase());
 }
 
+function mcpAllowedOrigins(): string[] {
+  const origins = env("KNOWLEDGE_MCP_ALLOWED_ORIGINS", "")
+    .split(",").map((origin) => origin.trim()).filter(Boolean);
+  for (const origin of origins) {
+    let valid = false;
+    try {
+      const url = new URL(origin);
+      valid = ["http:", "https:"].includes(url.protocol) && url.origin === origin && !origin.includes("*");
+    } catch { /* Invalid origins must not silently disable the check. */ }
+    if (!valid) {
+      throw new Error("KNOWLEDGE_MCP_ALLOWED_ORIGINS must contain exact http(s) origins without paths or wildcards");
+    }
+  }
+  return [...new Set(origins)];
+}
+
 function validateClickHouseConfig(config: ClickHouseTelemetryConfig): void {
   if (!config.enabled) return;
   if (!config.url) throw new Error("KNOWLEDGE_CLICKHOUSE_URL is required when telemetry is enabled");
@@ -163,6 +185,10 @@ export function loadConfig(): ServiceConfig {
     port: envInt("PORT", 8421),
     auth: {
       serviceKey: env("KNOWLEDGE_SERVICE_KEY", ""),
+    },
+    mcp: {
+      enabled: envBool("KNOWLEDGE_MCP_ENABLED", true),
+      allowedOrigins: mcpAllowedOrigins(),
     },
     dataDir: expandHome(env("KNOWLEDGE_DATA_DIR", "./data")),
     dbPath: expandHome(env("KNOWLEDGE_DB_PATH", "./data/knowledge.db")),

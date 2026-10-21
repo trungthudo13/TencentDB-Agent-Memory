@@ -297,6 +297,36 @@ selection (Codex needs Plan mode for the selection form). Missing or bypassed
 session identity means L0 capture is skipped. Memory injection is a separate
 feature and remains disabled in this setup.
 
+## MemoryKnowledge MCP over Streamable HTTP
+
+The `knowledgebase` service exposes MCP at **`http://127.0.0.1:8421/mcp`**
+in the existing HTTP process. No extra container or port is needed. From the
+repository root, after preparing `docker/.env`:
+
+```bash
+docker compose -f docker/docker-compose.yml up -d --build knowledgebase
+curl -fsS http://127.0.0.1:8421/health
+```
+
+Configure the Agent's MCP client with transport **Streamable HTTP**, that URL,
+and header `x-tdai-service-id: default` (or the tenant containing your assets).
+When `KNOWLEDGE_SERVICE_KEY` is configured, every MCP request also requires
+`Authorization: Bearer <service key>`. This is an internal service credential,
+not a Memory user key or model login token. The service ID selects a tenant
+within that shared trusted credential; MCP does not enforce per-user ACLs.
+
+`KNOWLEDGE_MCP_ENABLED` defaults to `true`; set it to `false` to disable `/mcp`.
+`KNOWLEDGE_MCP_ALLOWED_ORIGINS` accepts comma-separated exact browser origins.
+The default empty list rejects requests carrying any `Origin`; native clients
+without `Origin` are accepted. This validates Origin only; it does not enable
+browser CORS/OPTIONS. Apply environment changes with `up -d knowledgebase`.
+
+This endpoint uses stateless JSON responses. GET/DELETE return 405 after access
+checks; it does not provide SSE notifications or resumable sessions. Use a
+Streamable HTTP client, not an older HTTP+SSE-only client.
+See [the MCP connection guide](../MemoryKnowledge/MCP.md) for the 12 CodeGraph/Wiki
+tools, connection checks, troubleshooting, and the local stdio alternative.
+
 ## Initialize the first admin with Docker
 
 Run these commands in Bash from the repository root. This guide uses

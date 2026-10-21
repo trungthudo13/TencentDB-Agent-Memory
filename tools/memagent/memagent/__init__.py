@@ -1,1 +1,0 @@
-"""MemoryProxy agent configuration CLI."""

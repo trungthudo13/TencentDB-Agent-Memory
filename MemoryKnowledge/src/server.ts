@@ -35,6 +35,7 @@ import {
   createKnowledgeTelemetryMiddleware,
 } from "./clickhouse-telemetry.js";
 import { createAnalyticsRoutes } from "./analytics-routes.js";
+import { createMcpHttpRoutes } from "./mcp/http.js";
 
 const log = createLogger("server");
 
@@ -55,7 +56,8 @@ export function createApp() {
   const app = new Hono();
 
   // Middleware
-  app.use("*", accessLog());
+  // MCP owns its raw body stream for protocol parsing and size limits.
+  app.use("*", accessLog({ skipBodyPaths: ["/mcp"] }));
   app.onError(errorHandler);
 
   // Health (no prefix)
@@ -106,6 +108,15 @@ export function createApp() {
 
   app.route(config.apiPrefix, api);
 
+  if (config.mcp.enabled) {
+    app.route("/mcp", createMcpHttpRoutes({
+      serviceKey: config.auth.serviceKey,
+      allowedOrigins: config.mcp.allowedOrigins,
+      apiPrefix: config.apiPrefix,
+      apiFetch: (request) => app.fetch(request),
+    }));
+  }
+
   // Swagger UI — serve OpenAPI spec from the package root (kept out of docs/
   // so the runtime never depends on documentation files).
   const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -124,7 +135,7 @@ export function createApp() {
   return { app, config, knowledgeModule, knowledgeTelemetry };
 }
 
-async function startServer(): Promise<void> {
+export async function startServer(): Promise<void> {
   const { app, config, knowledgeTelemetry } = createApp();
   await knowledgeTelemetry.initialize();
 
@@ -132,6 +143,9 @@ async function startServer(): Promise<void> {
   log.info(`Data dir: ${config.dataDir}`);
   log.info(`DB path: ${config.dbPath}`);
   log.info(`API prefix: ${config.apiPrefix}`);
+  log.info(config.mcp.enabled
+    ? `MCP Streamable HTTP: http://localhost:${config.port}/mcp (stateless, ${config.auth.serviceKey ? "Bearer auth required" : "auth disabled"})`
+    : "MCP Streamable HTTP: disabled");
   log.info(`ClickHouse telemetry: ${config.clickhouse.enabled ? "enabled" : "disabled"}`);
   // Security posture：空 key 只 warn 不拒启（向后兼容），与 Core gateway 的默认开放语义一致。
   if (config.auth.serviceKey) {
