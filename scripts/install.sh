@@ -13,6 +13,8 @@ Usage: bash install.sh [project-directory]
 Configure existing Codex / Claude Code CLIs for MemoryProxy in a project.
 Requires Bash, Python >= 3.11, and an interactive terminal (/dev/tty).
 The wizard asks for user_key, team_id, agent_id and connection URLs.
+MemoryCore URL/gateway key are used for read-only identity checks.
+Checks must pass before the final confirmation; default is not to write.
 Creates ~/.codex/<normalized-folder>-memory.config.toml for Codex.
 Optionally configures project MCP; no launchers are needed.
 It does not install CLI binaries, start services, or authenticate model accounts.
@@ -70,6 +72,12 @@ section '3 / 4  Proxy connection'
 hint 'Memory instance ID is usually default; it is not your team ID.'
 prompt 'MemoryProxy root URL' http://127.0.0.1:8096; export MI_PROXY=$REPLY
 prompt 'Memory instance ID' default; export MI_SPACE=$REPLY
+hint 'Read-only identity checks use MemoryCore, not the model API.'
+prompt 'MemoryCore root URL' http://127.0.0.1:8420; export MI_CORE=$REPLY
+printf '  > MemoryCore gateway key (hidden; Enter if not required): ' >&3
+IFS= read -r -s MI_CORE_KEY <&3 || cancel
+printf '\n' >&3
+export MI_CORE_KEY
 section '4 / 4  Knowledge MCP (optional)'
 hint 'Adds CodeGraph/Wiki tools. The service key is separate from your user key.'
 while true; do
@@ -103,6 +111,8 @@ import textwrap
 import tempfile
 import tomllib
 from urllib.parse import urlsplit, quote
+from urllib.request import Request, build_opener, HTTPRedirectHandler
+from urllib.error import HTTPError, URLError
 
 def value(name):
     result = os.environ.get('MI_' + name, '')
@@ -163,6 +173,75 @@ def atomic(path, content, mode=0o600):
     finally:
         if os.path.exists(name): os.unlink(name)
 
+class CheckFailed(Exception):
+    pass
+
+class NoRedirect(HTTPRedirectHandler):
+    # Do not forward credentials to a different URL through redirects.
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+def request_json(label, endpoint, headers=None, body=None):
+    try:
+        req = Request(endpoint, data=json.dumps(body).encode() if body is not None else None,
+                      headers={'Content-Type': 'application/json', **(headers or {})})
+        with build_opener(NoRedirect).open(req, timeout=8) as response:
+            raw = response.read(1024 * 1024 + 1)
+        if len(raw) > 1024 * 1024:
+            raise CheckFailed(label + ': response is too large.')
+        result = json.loads(raw)
+        if not isinstance(result, dict): raise ValueError()
+        return result
+    except HTTPError as exc:
+        raise CheckFailed(label + ': HTTP ' + str(exc.code) + '. Check the URL, credentials and access.') from None
+    except (URLError, TimeoutError, OSError):
+        raise CheckFailed(label + ': connection failed or timed out. Check the URL and service.') from None
+    except (ValueError, UnicodeError):
+        raise CheckFailed(label + ': expected a JSON response. Check the endpoint.') from None
+
+def preflight(proxy, mcp_url, mcp_headers, use_mcp):
+    print('\n  CONNECTION CHECKS\n  ----------------------------------------', flush=True)
+    health = request_json('MemoryProxy', proxy + '/health')
+    if health.get('status') != 'ok': raise CheckFailed('MemoryProxy is not healthy.')
+    print('  OK  MemoryProxy health', flush=True)
+    core = url('CORE')
+    core_headers = {'x-tdai-service-id': value('SPACE'), 'x-tdai-user-key': value('USER_KEY')}
+    if value('CORE_KEY'): core_headers['Authorization'] = 'Bearer ' + value('CORE_KEY')
+    def meta(route, body, label):
+        result = request_json(label, core + '/v3/meta/' + route, core_headers, body)
+        if result.get('code') != 0 or not isinstance(result.get('data'), dict):
+            raise CheckFailed(label + ': request was rejected. Check the identity and access.')
+        return result['data']
+    identity = meta('auth/verify', {'user_key': value('USER_KEY')}, 'User key')
+    user_id = (identity.get('user') or {}).get('user_id')
+    if identity.get('valid') is not True or not isinstance(user_id, str) or not user_id:
+        raise CheckFailed('User key is invalid or the user is not visible.')
+    print('  OK  User key verified (user_id resolved)', flush=True)
+    team = meta('team/get', {'team_id': value('TEAM')}, 'Team')
+    if team.get('team_id') != value('TEAM') or team.get('status') != 'active':
+        raise CheckFailed('Team is missing or inactive.')
+    member = meta('team-member/get', {'team_id': value('TEAM'), 'user_id': user_id}, 'Team membership')
+    if member.get('team_id') != value('TEAM') or member.get('user_id') != user_id or member.get('status') != 'active':
+        raise CheckFailed('User is not an active member of this team.')
+    print('  OK  Active team membership', flush=True)
+    agent = meta('agent/get', {'agent_id': value('AGENT')}, 'Agent')
+    if agent.get('agent_id') != value('AGENT') or agent.get('team_id') != value('TEAM') or agent.get('status') != 'active':
+        raise CheckFailed('Agent is missing, inactive, or belongs to a different team.')
+    if agent.get('owner_user_id') != user_id:
+        raise CheckFailed('Agent belongs to another user; proxy selection requires your own agent.')
+    print('  OK  Agent belongs to this user and team', flush=True)
+    if use_mcp:
+        result = request_json('Knowledge MCP', mcp_url,
+            {'Accept': 'application/json, text/event-stream', **mcp_headers},
+            {'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {
+                'protocolVersion': '2025-03-26', 'capabilities': {},
+                'clientInfo': {'name': 'memory-install-check', 'version': '1.0'}}})
+        init = result.get('result')
+        if result.get('error') or result.get('id') != 1 or not isinstance(init, dict) or not init.get('protocolVersion') or not isinstance(init.get('capabilities'), dict) or not isinstance(init.get('serverInfo'), dict):
+            raise CheckFailed('Knowledge MCP initialization failed. Check endpoint, service ID and service key.')
+        print('  OK  Knowledge MCP handshake', flush=True)
+    print('  Model authentication and asset queries are not tested.', flush=True)
+
 try:
     proxy = url('PROXY')
     space = quote(value('SPACE'), safe='')
@@ -205,6 +284,10 @@ try:
         data = read_json(path)
         env = data.setdefault('env', {})
         before = encoded(data)
+        intended_env = {'ANTHROPIC_BASE_URL': proxy + '/claude-code/' + space,
+                        'ANTHROPIC_CUSTOM_HEADERS': '\n'.join(k + ': ' + v for k, v in headers.items())}
+        if any(key in env and env[key] != val for key, val in intended_env.items()):
+            warnings.append('Existing Claude proxy options differ from the checked inputs and will be kept. Edit them manually to use the checked values.')
         env.setdefault('ANTHROPIC_BASE_URL', proxy + '/claude-code/' + space)
         env.setdefault('ANTHROPIC_CUSTOM_HEADERS', '\n'.join(k + ': ' + v for k, v in headers.items()))
         if not path.exists() or encoded(data) != before:
@@ -215,6 +298,9 @@ try:
             path = Path('.mcp.json')
             data = read_json(path)
             before = encoded(data)
+            intended_mcp = {'type': 'http', 'url': mcp_url, 'headers': mcp_headers}
+            if 'memory_knowledge' in data.get('mcpServers', {}) and data['mcpServers']['memory_knowledge'] != intended_mcp:
+                warnings.append('Existing Claude MCP settings differ from the checked endpoint and will be kept; that existing connection was not tested.')
             data.setdefault('mcpServers', {}).setdefault('memory_knowledge', {'type': 'http', 'url': mcp_url, 'headers': mcp_headers})
             if not path.exists() or encoded(data) != before:
                 files.append((path, encoded(data), 0o600))
@@ -234,6 +320,26 @@ try:
     for path, _, _ in files:
         if path.is_symlink() or any(p.is_symlink() for p in path.parents):
             raise ValueError(f'Refusing symlink destination: {path}')
+    # Network checks and approval happen before the first filesystem mutation.
+    preflight(proxy, mcp_url, mcp_headers, use_mcp)
+    print('\n  READY TO INSTALL\n  ----------------------------------------')
+    for path, _, _ in files: print('  Write: ' + str(path))
+    for action, target in results: print('  ' + action + ': ' + target)
+    if missing: print('  Update: .gitignore (private config exclusions)')
+    if warnings:
+        print('\n  Warnings before approval')
+        for warning in warnings: print('  ! ' + warning)
+    sys.stdout.flush()
+    with open('/dev/tty', 'r+') as tty:
+        while True:
+            tty.write('\n  > Save this configuration? (y/n) [n]: ')
+            tty.flush()
+            answer = tty.readline()
+            if not answer or answer.strip().lower() in ('', 'n', 'no'):
+                print('\n  Cancelled. No configuration files were changed.')
+                raise SystemExit(0)
+            if answer.strip().lower() in ('y', 'yes'): break
+            tty.write('  Enter y or n.\n')
     if missing:
         results.append(('Updated' if ignore.exists() else 'Created', str(ignore) + ' (private config exclusions)'))
         atomic(ignore, old_ignore.rstrip('\n') + '\n\n# Private Memory client configuration\n' + '\n'.join(missing) + '\n', 0o644)
@@ -290,7 +396,8 @@ try:
         print('    .claude/settings.json')
         if use_mcp: print('    .mcp.json')
     print('\n  Notes\n  ----------------------------------------')
-    print('  Configuration only; services and credentials have not been tested.')
+    print('  Entered URLs, Memory identity and optional MCP handshake passed checks.')
+    print('  Model authentication and Knowledge asset queries were not tested.')
     print('  Keep your model login separate from your Memory user key.')
     if value('CLIENT') == 'claude' and Path('.claude/settings.local.json').exists():
         warnings.append('.claude/settings.local.json may override these proxy settings. Review its env options.')
@@ -302,6 +409,11 @@ try:
     if warnings:
         print('\n  Warnings\n  ----------------------------------------', file=sys.stderr)
         for warning in warnings: print('  ! ' + warning, file=sys.stderr)
+except CheckFailed as exc:
+    print('\n  CHECK FAILED\n  ----------------------------------------', file=sys.stderr)
+    print('  ' + str(exc), file=sys.stderr)
+    print('  No configuration files were changed. Correct the inputs and rerun.', file=sys.stderr)
+    raise SystemExit(1)
 except (ValueError, TypeError, AttributeError, OSError) as exc:
     # Parse errors may contain source text; never print potentially secret input.
     sys.stdout.flush()

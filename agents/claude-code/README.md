@@ -34,11 +34,17 @@ Choose exactly one client, `codex` or `claude` (required, no default), and enter
 - `user_key` (hidden), `team_id`, and `agent_id` from Memory Hub.
 - MemoryProxy root URL (default `http://127.0.0.1:8096`).
 - Memory instance ID (default `default`, distinct from team/agent IDs).
+- MemoryCore root URL (default `http://127.0.0.1:8420`) and optional gateway
+  key for identity checks. This key is not saved in the client configuration.
 - Optionally the Knowledge MCP URL (default `http://127.0.0.1:8421/mcp`), service
   ID, and service key (hidden, optional if the server has no key).
 
 The installer configures clients; it does not install CLI binaries, start
-services, authenticate model accounts, or validate remote credentials. Model
+services or authenticate model accounts. Before any file writes, it validates
+Proxy health, the Memory user key, active team membership, agent ownership and
+team/status, and optional MCP initialization. It then lists planned changes and
+asks `Save this configuration? (y/n) [n]`. Failure or declining leaves config
+files unchanged. Model authentication and Knowledge asset queries are not tested. Model
 credentials remain separate from the Memory user key. For Claude, only missing options are added; existing values are skipped.
 Modified existing files receive private `.bak.<timestamp>` backups. Unchanged
 files are not rewritten or backed up. TOML comments

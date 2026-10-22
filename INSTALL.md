@@ -425,9 +425,35 @@ The wizard reads from your terminal even when piped through Bash and asks for:
 1. **Client:** enter `codex` or `claude`; one choice is required, with no default.
 2. **Memory identity:** `user_key` (hidden), `team_id`, and `agent_id`.
 3. **Proxy connection:** root URL (default `http://127.0.0.1:8096`) and Memory
-   instance ID (usually `default`, not the team ID).
+   instance ID (usually `default`, not the team ID). Enter the MemoryCore root
+   URL (default `http://127.0.0.1:8420`) and its gateway key if required for
+   read-only identity checks. The gateway key is not saved in client config.
 4. **Optional Knowledge MCP:** endpoint, service ID, and a separate service key
    if your Knowledge server requires one. Key input is hidden.
+
+**Understanding the two IDs:**
+
+| Wizard field | Purpose | What to enter |
+| --- | --- | --- |
+| Memory instance ID | Selects the Memory instance in the proxy URL, e.g. `/codex/default/v1`. The proxy passes it to MemoryCore as `x-tdai-service-id`. | Keep `default` for the default local instance; otherwise use your configured instance ID. |
+| Knowledge service ID | Selects the scope containing your CodeGraph/Wiki assets. MCP sends it to Knowledge Service as `x-tdai-service-id`. | Keep `default` if your assets were created in the default service; otherwise enter the service ID containing those assets. |
+
+These IDs are not secrets and are distinct from `team_id` and `agent_id`.
+They select scopes in separate services; matching values do not make the two
+services or their credentials interchangeable.
+
+**Where to find the service keys:** for the Docker Compose deployment, use the
+values in your actual `docker/.env`. The variable names are documented in
+[`docker/.env.example`](./docker/.env.example):
+
+| Wizard field | Environment variable | If empty on the server |
+| --- | --- | --- |
+| Knowledge service key | `KNOWLEDGE_SERVICE_KEY` | Press Enter; no Knowledge bearer key is needed. |
+| MemoryCore gateway key | `MEMORY_CORE_GATEWAY_API_KEY` | Press Enter if gateway authentication is not required. |
+
+If a key is configured, enter that exact value at its hidden prompt. These
+service keys are separate from each other, your Memory Hub `user_key`, and your
+model account credentials. Do not substitute one for another.
 
 Use the Knowledge port published by your deployment: the wizard defaults to
 `http://127.0.0.1:8421/mcp`, while the three-in-one stack documented above uses
@@ -447,8 +473,14 @@ the same profile. No `.memory-clients` launcher is needed.
 
 After setup, start a new session, accept applicable workspace/MCP trust prompts,
 and use `/mcp` to check Knowledge tools if enabled. Send a message and check
-Memory Hub under your team/agent. The wizard does not test service connectivity
-or account access. Knowledge assets must be registered and indexed before
+Memory Hub under your team/agent. Before writing files, the wizard checks Proxy health, verifies the Memory user
+key, checks active team membership and agent ownership/team/status, and performs
+an MCP initialization handshake if enabled. All checks must pass before the
+`Save this configuration? (y/n) [n]` prompt. Declining or a failed check leaves
+configuration files unchanged. Model authentication and asset queries are not
+tested. Existing Claude options are retained; if they differ from the checked
+inputs, the wizard warns before confirmation that those existing values were
+not validated. Knowledge assets must be registered and indexed before
 querying them.
 
 **Rerunning and backups:** rerun the same command from the project to configure
