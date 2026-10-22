@@ -1,198 +1,97 @@
-# Claude Code — local project setup
+# Claude Code — project configuration
 
-Connect Claude Code to local MemoryProxy and Knowledge MCP using files in your
-working project. Put keys directly in those files. No memagent is required.
-This guide uses Bash and an already installed, authenticated Claude Code CLI.
+MemoryProxy settings live in `.claude/settings.json`. Knowledge MCP lives in
+`.mcp.json` at the project root. Claude Code discovers these standard files;
+no launcher or `--mcp-config` argument is needed.
 
-Proxy settings live in `.claude/settings.local.json`. MCP settings live in
-`.claude/mcp.local.json`, loaded explicitly when starting the CLI. These files
-apply to this project; no user-wide provider or MCP configuration is required.
+## Run the installer
 
-## Step 1 — Start the local services
-
-These instructions assume the Docker stack has already been configured in
-`docker/.env`. From the **self_agent_memory repository root**, run:
+Install the client CLI separately and start MemoryProxy / Knowledge Service.
+From the project you want the client to work on, run:
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d --build memory memory-panel memory-proxy knowledgebase
-curl -fsS http://127.0.0.1:8096/health
-curl -fsS http://127.0.0.1:8421/health
+bash /path/to/self_agent_memory/scripts/install.sh
 ```
 
-The defaults are Panel `8125`, MemoryProxy `8096`, and Knowledge `8421`.
-Adjust the client URLs below if you changed those ports. The client and Docker
-stack must run on the same machine for these loopback URLs to work.
-
-In `docker/memory-proxy.yaml`, check that `auth.enabled`,
-`sessionInit.enabled`, `extraction.enabled`, `tdai.enabled`, and
-`tdai.memory.writeL0` are `true` for conversation capture. Recall also needs
-`injection.enabled` and `tdai.memory.inject`. These flags are enabled in the
-current configuration. Keep the existing MemoryCore endpoints and service-token
-settings. If MemoryCore uses a gateway key, configure the matching
-`MEMORY_CORE_GATEWAY_API_KEY` in `docker/.env`.
-
-After editing YAML, restart `memory-proxy`. After editing `.env`, recreate it
-with `docker compose -f docker/docker-compose.yml up -d --force-recreate memory-proxy`.
-A healthy proxy alone does not prove that model requests or capture work.
-
-## Step 2 — Collect your local connection values
-
-Open Memory Hub at <http://127.0.0.1:8125> and obtain:
-
-- Your Memory Hub **user key**.
-- A **team ID** you can access and an **agent ID** belonging to that team.
-- Optionally, a task ID belonging to the same team.
-- The Knowledge service key, if `KNOWLEDGE_SERVICE_KEY` is set in `docker/.env`.
-
-Use IDs rather than display names. The Memory user key, Knowledge service key,
-and model credential serve different purposes. The proxy removes
-`x-tdai-user-key` before forwarding to the model and preserves model authentication.
-`default` in the proxy URL is the memory instance ID, not the team ID.
-The MCP `x-tdai-service-id` must match the tenant containing your Knowledge assets.
-
-## Step 3 — Configure the proxy in your working project
-
-Switch to the **project you want Claude Code to work on**, which may be different
-from the self_agent_memory checkout:
+After the script is published on `main`, the same wizard can be downloaded:
 
 ```bash
-cd /path/to/your/project
-mkdir -p .claude
+curl -fsSL https://raw.githubusercontent.com/trungthudo13/TencentDB-Agent-Memory/main/scripts/install.sh | bash
 ```
 
-For a Git project, add `/.claude/settings.local.json` and
-`/.claude/mcp.local.json` to its local Git exclude file
-(`git rev-parse --git-path info/exclude`). These files contain literal keys.
+Requires Bash, Python 3.11+, and an interactive terminal. Prompts read from
+`/dev/tty`, so piping the script does not consume wizard answers. To target a
+different directory, use `bash -s -- /path/to/project` after the pipe.
 
-Create or merge into `.claude/settings.local.json`:
+The wizard groups questions into Client, Memory identity, Proxy connection,
+and Knowledge MCP. Its summary separates file changes (`Created`, `Updated`,
+`Kept`), launch commands, exact backup paths, and future update instructions.
+Warnings are grouped at the end on stderr; results and commands use stdout.
+Prompts remain on `/dev/tty` when stdout is redirected.
 
-```json
-{
-  "env": {
-    "ANTHROPIC_BASE_URL": "http://127.0.0.1:8096/claude-code/default",
-    "ANTHROPIC_CUSTOM_HEADERS": "x-tdai-user-key: <MEMORY_HUB_USER_KEY>\nx-team-id: <TEAM_ID>\nx-agent-id: <AGENT_ID>"
-  }
-}
-```
+Choose exactly one client, `codex` or `claude` (required, no default), and enter:
 
-Replace the placeholders directly in the file. Keep `\n` as JSON escapes between
-headers. To associate a task, append `\nx-task-id: <TASK_ID>` inside the string.
-Valid team and agent headers register the session directly; otherwise complete
-the interactive selection form when it appears.
+- `user_key` (hidden), `team_id`, and `agent_id` from Memory Hub.
+- MemoryProxy root URL (default `http://127.0.0.1:8096`).
+- Memory instance ID (default `default`, distinct from team/agent IDs).
+- Optionally the Knowledge MCP URL (default `http://127.0.0.1:8421/mcp`), service
+  ID, and service key (hidden, optional if the server has no key).
 
-Keep your working Claude model authentication. The Memory user key is sent
-through `ANTHROPIC_CUSTOM_HEADERS`; do not substitute it for the model credential
-in `ANTHROPIC_AUTH_TOKEN` or `ANTHROPIC_API_KEY`. The proxy's
-`upstream.agents.claude-code` entry should use `https://api.anthropic.com/v1`
-with an empty `apiKey` to preserve the client's model credential.
+The installer configures clients; it does not install CLI binaries, start
+services, authenticate model accounts, or validate remote credentials. Model
+credentials remain separate from the Memory user key. For Claude, only missing options are added; existing values are skipped.
+Modified existing files receive private `.bak.<timestamp>` backups. Unchanged
+files are not rewritten or backed up. TOML comments
+and formatting remain in the backup rather than the rewritten configuration.
+Generated project config files and backups are added to `.gitignore` because
+they contain literal keys. Tracked target files are rejected before writing.
 
-If you authenticate with an Anthropic API key instead of an existing login,
-add `"ANTHROPIC_API_KEY": "<YOUR_ANTHROPIC_API_KEY>"` to the same `env` object.
-This is a model-provider key, not a Memory key. Use a model available to that
-account. Successful subscription passthrough must be verified with a real
-request for your client/account; service health alone cannot establish it.
+## Start Claude Code
 
-Claude Code supports project-local settings and newline-separated custom
-headers. See [settings](https://code.claude.com/docs/en/settings) and
-[environment variables](https://code.claude.com/docs/en/env-vars).
-
-## Step 4 — Create the project-local MCP file
-
-Create `.claude/mcp.local.json`:
-
-```json
-{
-  "mcpServers": {
-    "memory_knowledge": {
-      "type": "http",
-      "url": "http://127.0.0.1:8421/mcp",
-      "headers": {
-        "x-tdai-service-id": "default"
-      }
-    }
-  }
-}
-```
-
-If Knowledge has a service key, add this entry to `headers`, with a comma after
-the preceding entry:
-
-```json
-"Authorization": "Bearer <KNOWLEDGE_SERVICE_KEY>"
-```
-
-Replace the placeholder with the literal server key. No MCP OAuth login is
-needed. `.claude/mcp.local.json` is a custom file name; the launch command below
-loads it explicitly. See [Claude Code MCP](https://code.claude.com/docs/en/mcp).
+From the project root:
 
 ```bash
-chmod 600 .claude/settings.local.json .claude/mcp.local.json
+claude
 ```
 
-## Step 5 — Start a new local session
+The installer adds `ANTHROPIC_BASE_URL` and newline-separated
+`ANTHROPIC_CUSTOM_HEADERS` only if those options are missing. New headers contain `x-tdai-user-key`, `x-team-id`, and
+`x-agent-id`. An existing `ANTHROPIC_CUSTOM_HEADERS` value is kept in full.
+An existing `mcpServers.memory_knowledge` entry is also skipped in full, even
+if its URL or headers differ. Other servers and settings remain unchanged.
+To change existing options, edit them directly. Keep your existing model
+login or API key; do not replace it with the Memory user key.
 
-From your working project root, run:
+The root `.mcp.json` contains a `mcpServers.memory_knowledge` HTTP entry.
+Claude Code may ask you to approve the project MCP server on the first run.
+Check `/mcp` after approving it. See the official
+[project MCP documentation](https://code.claude.com/docs/en/mcp#project-scope).
 
-```bash
-claude --mcp-config .claude/mcp.local.json
-```
+## Upgrading from the previous installer
 
-Claude Code loads `.claude/settings.local.json` for the project. Complete any
-workspace trust prompt so project settings can apply. Approve the MCP connection
-if prompted. The explicit MCP file must be supplied on each launch; plain
-`claude` does not automatically load this custom file name.
+The previous installer used `.claude/mcp.local.json`, a custom path Claude
+Code does not auto-load. That is why its launcher passed `--mcp-config`.
+Rerun the wizard to write the standard files and then run `claude` directly.
+Old `.memory-clients/` and `.claude/mcp.local.json` files are left untouched.
 
-Start a fresh session after changing keys or team/agent values. Use `/status`
-to inspect the active client configuration and `/mcp` to inspect MCP status.
-The `--mcp-config` flag is documented in the
-[CLI reference](https://code.claude.com/docs/en/cli-reference).
+If `.claude/settings.local.json` still contains old proxy settings, review or
+remove those specific values: local settings can override `.claude/settings.json`.
+The wizard prints a reminder when that file exists and does not delete it.
+See [settings precedence](https://code.claude.com/docs/en/settings).
 
-## Step 6 — Verify model routing, memory, and MCP separately
+## Verify the connection
 
-1. Send a normal message and confirm the model responds through MemoryProxy.
-2. Check Chat Memory in the Panel under the configured team and agent after the
-   response finishes. A model response alone does not prove capture succeeded.
-3. Run `/mcp` in the client and check that `memory_knowledge` connects and exposes
-   12 tools: eight CodeGraph tools and four Wiki tools.
-4. Register and index a repository or Wiki through the Panel/API. Then ask:
-   “Use code_status for CodeGraph `<CODE_GRAPH_ID>`, then use code_search to find
-   the authentication code.” For Wiki, supply its wiki ID and ask for wiki_search.
+Start a new client session from the project directory and accept workspace/MCP
+trust prompts when applicable. Send a message and confirm it appears in Memory
+Hub under the intended team and agent. Check `/mcp` for `memory_knowledge`.
+Service health alone does not prove model authentication or memory capture.
 
-MCP provides read tools for CodeGraph/Wiki. It does not create/index assets or
-provide the proxy's `mem:*` commands. You can use MCP independently of model
-routing through MemoryProxy.
+Register and index repositories/Wikis through the Panel/API first. Supply a
+`code_graph_id` or `wiki_id` when asking the client to use Knowledge tools.
+Knowledge MCP exposes eight CodeGraph and four Wiki read tools; it does not
+index assets or implement the proxy's `mem:*` commands.
 
-From the **self_agent_memory repository root**, inspect service logs if needed:
-
-```bash
-docker compose -f docker/docker-compose.yml logs --tail=100 memory-proxy knowledgebase
-```
-
-| Symptom | Check |
-| --- | --- |
-| Proxy connection refused | Start `memory-proxy`; verify port `8096`. |
-| Memory authentication fails | Check the literal `x-tdai-user-key` value and the server's gateway key. |
-| Model authentication fails | Check the model login/credential separately from the Memory user key. |
-| No captured conversation | Check capture flags, user access, and successful team/agent session registration. Start a new session. |
-| MCP returns 404 | Rebuild `knowledgebase` and confirm `KNOWLEDGE_MCP_ENABLED=true`. |
-| MCP returns 401 | Match the MCP Authorization header to the server's Knowledge service key. |
-| MCP returns 403 | If the client sends Origin, add that exact origin to `KNOWLEDGE_MCP_ALLOWED_ORIGINS`. |
-| MCP connects but cannot find an asset | Check the asset ID, index status, and `x-tdai-service-id`. |
-
-Opening `/mcp` in a browser sends GET; 405 is expected after access checks.
-Use the client's MCP connection to test initialization and tool calls.
-See [Knowledge MCP](../../MemoryKnowledge/MCP.md) for transport details.
-
-## Adapter reference
-
-- Agent source: `claude-code`; handler: `MemoryProxy/src/anthropicHandler.ts`.
-- Protocol: Anthropic Messages; route: `/claude-code/:spaceId/v1/messages`.
-- Session headers: `x-claude-code-session-id`, `x-session-id`, then
-  `x-conversation-id`.
-- Interactive selection uses `AskUserQuestion`; valid team/agent headers bypass
-  the form. Task association is optional.
-- Memory is injected into `body.system`. Auxiliary requests bypass the main
-  injection/archiving flow.
-- The proxy handles `mem:*` commands; Knowledge MCP supplies separate read tools.
-
-For optional historical imports, see [asset import](./asset-import.md).
+If model authentication fails, check the model login independently of the
+Memory user key. MCP 401 errors require the Knowledge service key, not the user
+key. Check the tenant service ID and asset ID if searches return no data.
+See [Knowledge MCP](../../MemoryKnowledge/MCP.md) for transport troubleshooting.

@@ -139,3 +139,19 @@ MemoryCore/scripts/bench-l0-mongo/reports/
 # Local-only: parity snapshots & runtime configs (never commit)
 MemoryProxy/.archive-tmp/
 z_config/
+
+# Private Memory client configuration
+/.codex-local/
+/.memory-clients/
+/.claude/settings.local.json
+/.claude/settings.local.json.bak.*
+/.claude/mcp.local.json
+/.claude/mcp.local.json.bak.*
+
+# Private Memory client configuration
+/.codex/config.toml
+/.codex/config.toml.bak.*
+/.claude/settings.json
+/.claude/settings.json.bak.*
+/.mcp.json
+/.mcp.json.bak.*

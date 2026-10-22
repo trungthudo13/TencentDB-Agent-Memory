@@ -8,7 +8,7 @@ This document covers three installation modes:
    shot (recommended — lets coding agents like Claude Code plug directly into
    your team memory / knowledge / skill injection).
 2. **Memory Hub only**: lightweight deploy when Memory Core is already running.
-3. **Using Proxy with Claude Code**: point a coding agent at the proxy.
+3. **[Using Proxy with Agents](#using-proxy-with-agents)**: configure Codex or Claude Code with the interactive installer, or follow the other client guides.
 
 ---
 
@@ -119,7 +119,7 @@ org structure in the panel and (b) pick them from within an agent session.
 > **⚠️ This section uses Claude Code as an example.** If you're using a different agent, jump to its doc directly:
 >
 > | Agent | Docs |
-> |-------|------|
+> | ------- | ------ |
 > | CodeBuddy | [`agents/codebuddy/`](./agents/codebuddy/) |
 > | WorkBuddy | [`agents/workbuddy/`](./agents/workbuddy/) |
 > | Codex | [`agents/codex/`](./agents/codex/) |
@@ -144,6 +144,7 @@ Open **<http://localhost:8125>** in your browser (Panel UI).
   back in as the new user.
 
 > **Permission model (understand this first, or the later steps won't add up)**:
+>
 > - **admin is the "ops account"**: responsible for organization-level actions —
 >   **creating Teams, creating users, and adding users into Teams**. The
 >   "New Team" and "New User" entries in the panel are **visible only to admin**.
@@ -290,19 +291,19 @@ claude --model <whatever PROXY_UPSTREAM_MODEL is set to>
 **Every new CC session**, the proxy uses CC's native `AskUserQuestion`
 tool to walk you through three consecutive picks:
 
-```
+```sh
 ┌─────────────────────────────────────────────────┐
-│  1. Please pick the Team for this session:     │
+│  1. Please pick the Team for this session:      │
 │     ○ Team A                                    │
 │     ○ Team B                                    │
 │                                                 │
-│  2. Please pick an Agent under Team A:         │
-│     ○ bug-fix engineer                         │
-│     ○ frontend reviewer                        │
+│  2. Please pick an Agent under Team A:          │
+│     ○ bug-fix engineer                          │
+│     ○ frontend reviewer                         │
 │                                                 │
-│  3. Optionally pick a Task:                    │
-│     ○ Fix login XSS                            │
-│     ○ [Skip task binding]                      │
+│  3. Optionally pick a Task:                     │
+│     ○ Fix login XSS                             │
+│     ○ [Skip task binding]                       │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -403,14 +404,75 @@ Open [http://localhost:8125](http://localhost:8125).
 
 ## Using Proxy with Agents
 
+### Quick setup: Codex or Claude Code
+
+Run the installer from the **project you want your AI agent to work on**. You
+do not need to clone this repository into that project:
+
+```bash
+cd /path/to/your/project
+curl -fsSL https://raw.githubusercontent.com/trungthudo13/TencentDB-Agent-Memory/main/scripts/install.sh | bash
+```
+
+**Before you start:** install the Codex or Claude Code CLI, have Bash and
+Python 3.11+ available, and start your MemoryProxy service. Prepare your Memory
+Hub `user_key`, `team_id`, and `agent_id`. Keep your model account login/API key
+separate from the Memory user key. This wizard configures the client; it does
+not install CLI binaries or deploy backend services.
+
+The wizard reads from your terminal even when piped through Bash and asks for:
+
+1. **Client:** enter `codex` or `claude`; one choice is required, with no default.
+2. **Memory identity:** `user_key` (hidden), `team_id`, and `agent_id`.
+3. **Proxy connection:** root URL (default `http://127.0.0.1:8096`) and Memory
+   instance ID (usually `default`, not the team ID).
+4. **Optional Knowledge MCP:** endpoint, service ID, and a separate service key
+   if your Knowledge server requires one. Key input is hidden.
+
+Use the Knowledge port published by your deployment: the wizard defaults to
+`http://127.0.0.1:8421/mcp`, while the three-in-one stack documented above uses
+`http://127.0.0.1:8424/mcp`. For a remote service, enter an address reachable
+from the machine running your client.
+
+| Client | Generated configuration | Start from the project root |
+| --- | --- | --- |
+| Codex | `~/.codex/<normalized-folder>-memory.config.toml`; optional MCP in `.codex/config.toml` | `codex --profile <normalized-folder>-memory` |
+| Claude Code | `.claude/settings.json`; optional MCP in root `.mcp.json` | `claude` |
+
+For example, a folder named `My_Project` gets the Codex profile
+`my-project-memory`. The installer prints the exact launch command. It leaves
+`~/.codex/config.toml` unchanged; Codex uses the generated profile only when
+selected with `--profile`. Projects whose names normalize identically share
+the same profile. No `.memory-clients` launcher is needed.
+
+After setup, start a new session, accept applicable workspace/MCP trust prompts,
+and use `/mcp` to check Knowledge tools if enabled. Send a message and check
+Memory Hub under your team/agent. The wizard does not test service connectivity
+or account access. Knowledge assets must be registered and indexed before
+querying them.
+
+**Rerunning and backups:** rerun the same command from the project to configure
+it again. Codex adds or updates MemoryProxy settings while preserving unrelated
+profile values. Claude only adds missing options; existing options and an
+existing `memory_knowledge` server entry are kept. Edit those values directly
+when needed. Changed existing config files get a private `.bak.<timestamp>`
+backup beside the original; the summary lists the exact paths. Unchanged files
+are skipped. Project config files containing keys are excluded from Git;
+already tracked targets are rejected before credentials are written.
+
+See the [installer source](./scripts/install.sh), [Codex guide](./agents/codex/),
+and [Claude Code guide](./agents/claude-code/) for details.
+
+### Other clients and manual setup
+
 The Proxy supports 9 agent clients. **Full setup instructions, adaptation details, and FAQs** for each agent are in the [`agents/`](./agents/) directory:
 
 | Agent | Config method | Docs |
-|-------|---------------|------|
-| **Claude Code** | env vars or `~/.claude/settings.json` | [`agents/claude-code/`](./agents/claude-code/) |
+| ------- | --------------- | ------ |
+| **Claude Code** | Project `.claude/settings.json` + `.mcp.json` | [`agents/claude-code/`](./agents/claude-code/) |
 | **CodeBuddy** | `~/.codebuddy/models.json` | [`agents/codebuddy/`](./agents/codebuddy/) |
 | **WorkBuddy** | `~/.workbuddy/models.json` | [`agents/workbuddy/`](./agents/workbuddy/) |
-| **Codex** | `~/.codex/config.toml` (⚠️ first turn requires Plan mode) | [`agents/codex/`](./agents/codex/) |
+| **Codex** | User-level profile + project `.codex/config.toml` for MCP | [`agents/codex/`](./agents/codex/) |
 | **DeepSeek Harness (dsh)** | `~/.dsh/settings.yaml` + `.credentials.yaml` | [`agents/dsh/`](./agents/dsh/) |
 | **OpenCode** | `~/.config/opencode/opencode.json` | [`agents/opencode/`](./agents/opencode/) |
 | **Hermes** | `~/.hermes/config.yaml` + header preselect | [`agents/hermes/`](./agents/hermes/) |
@@ -452,7 +514,7 @@ http://<proxy-host>:<port>/pi/<spaceId>/v1
 Injected automatically by the `pi-plugin` extension:
 
 | Header | Source |
-|---|---|
+| --- | --- |
 | `Authorization: Bearer` | `TDAI_USER_KEY` (the user's API key, not the admin/gateway key) |
 | `x-team-id` / `x-agent-id` | env vars (static per host) |
 | `x-task-id` | `TDAI_TASK_ID` — **optional**. Omit for broad recall across the agent's memories; set to narrow recall to a task. A stale/unknown `task_id` is dropped (not a hard mismatch), so it never blocks registration. (See [`Known limitation: x-task-id`](#known-limitation-x-task-id) for the header preselect agents that still require it.) |
@@ -657,7 +719,7 @@ it is split across three services, and skipping ClickHouse on any of
 them leaves the corresponding data blank:
 
 | Role | Service | What it does |
-|---|---|---|
+| --- | --- | --- |
 | Capture (memory / skill tool calls) | **Proxy** | Every memory / skill cloud-asset tool call is written to ClickHouse `usage_logs` / `tool_call_logs` |
 | Capture (wiki / code-graph tool calls) | **Knowledge** | Every wiki / code-graph tool call is written to ClickHouse `tool_call_logs` |
 | Query API | **Core** | Exposes read-only `/v3/analytics/*` endpoints that aggregate the ClickHouse tables Proxy wrote to |
