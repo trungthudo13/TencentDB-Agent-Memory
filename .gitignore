@@ -155,3 +155,12 @@ z_config/
 /.claude/settings.json.bak.*
 /.mcp.json
 /.mcp.json.bak.*
+
+# Private Memory client configuration
+/.memory-hub/context.toml
+/.memory-hub/context.toml.bak.*
+/.memory-hub/context-hook.py
+/.memory-hub/context-hook.py.bak.*
+/.codex/hooks.json
+/.codex/hooks.json.bak.*
+/.memory-hub/

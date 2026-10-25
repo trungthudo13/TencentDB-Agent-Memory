@@ -475,3 +475,13 @@ If an earlier setup saved your admin key in
 ```bash
 cat deploy/global-images/.admin-key
 ```
+
+## Connect local clients and context hooks
+
+Docker starts the services; lifecycle hooks must run on the machine where your
+Codex or Claude Code client runs. After starting the services, run
+`bash /path/to/self_agent_memory/scripts/install.sh /path/to/your-project` on
+that machine. Enable Knowledge MCP and context hooks. Add graph/wiki IDs later
+in the generated `.memory-hub/context.toml`, choose retrieval order, review
+`/hooks` in the client, and start a new session. The installer never writes
+`AGENTS.md` or `CLAUDE.md`. See [context hook setup](../scripts/CONTEXT-HOOKS.md).

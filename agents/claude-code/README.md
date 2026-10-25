@@ -101,3 +101,13 @@ If model authentication fails, check the model login independently of the
 Memory user key. MCP 401 errors require the Knowledge service key, not the user
 key. Check the tenant service ID and asset ID if searches return no data.
 See [Knowledge MCP](../../MemoryKnowledge/MCP.md) for transport troubleshooting.
+
+## MCP-first context hooks
+
+The installer can register project-local lifecycle hooks without changing
+`AGENTS.md` or `CLAUDE.md`. Add graph/wiki IDs after installation in
+`.memory-hub/context.toml`; edit retrieval order and `strict`/`advisory`/`off`
+there. Reinstall keeps this policy unchanged and preserves existing hooks.
+Review `/hooks`, configure IDs, and start a new session. Strict mode blocks
+local tools until configured MCP retrieval succeeds; empty IDs remain blocked.
+See [setup, limitations and verification](../../scripts/CONTEXT-HOOKS.md).
