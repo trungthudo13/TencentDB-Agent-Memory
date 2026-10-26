@@ -238,8 +238,21 @@ Defaults work without adding anything to an existing `.env`.
 The upstream defaults to `https://chatgpt.com/backend-api/codex`; the proxy has
 no LLM API key and preserves the caller's upstream credential.
 
+For an outbound network proxy, copy `docker/.env.proxy.example` to
+`docker/.env.proxy` and adjust the proxy addresses. Compose loads this file only
+for `memory-proxy`; a missing file adds no environment variables. The private
+file is ignored by Git. Optional `env_file` requires Docker Compose 2.24.0 or later.
+`NODE_USE_ENV_PROXY=1` enables environment proxy support for Node fetch;
+keep internal service names in both `NO_PROXY` and `no_proxy`.
+Apply changes without rebuilding:
+
+```bash
+docker compose -f docker/docker-compose.yml up -d --no-deps --no-build --force-recreate memory-proxy
+```
+
 This initial deployment starts the existing API reverse proxy. It is **not** a
-CONNECT forward proxy and is not configured through `HTTP_PROXY`/`HTTPS_PROXY`.
+CONNECT forward proxy. `HTTP_PROXY`/`HTTPS_PROXY` above control its outbound
+connections, not how clients route requests into MemoryProxy.
 Starting the container does not reroute Codex automatically or change its login.
 The existing Codex POST route is `/codex/default/v1/responses` (also accepted
 without `/v1`), forwarded to the upstream's `/responses` endpoint.

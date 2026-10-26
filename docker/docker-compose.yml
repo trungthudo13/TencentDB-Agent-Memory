@@ -126,6 +126,9 @@ services:
       context: ../MemoryProxy
       dockerfile: Dockerfile
     restart: unless-stopped
+    env_file:
+      - path: ./.env.proxy
+        required: false
     environment:
       MEMORY_CORE_GATEWAY_API_KEY: ${MEMORY_CORE_GATEWAY_API_KEY:-}
     # Separate loopback default: this initial passthrough has no gateway auth.
