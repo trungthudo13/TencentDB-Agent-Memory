@@ -232,8 +232,9 @@ docker compose -f docker/docker-compose.yml logs --tail=50 memory-proxy
 The service builds the local `MemoryProxy/` source, mounts
 `docker/memory-proxy.yaml` read-only, and persists SQLite state in `proxy-data`.
 It binds to `127.0.0.1:8096` independently of the other services' `BIND_ADDRESS`.
-Optional `.env` overrides are `PROXY_BIND_ADDRESS`, `PROXY_PORT`, and
-`PROXY_UPSTREAM_URL`. Defaults work without adding anything to an existing `.env`.
+Optional `.env` overrides are `PROXY_BIND_ADDRESS` and `PROXY_PORT`.
+Configure upstream URLs and keys in `docker/memory-proxy.yaml`.
+Defaults work without adding anything to an existing `.env`.
 The upstream defaults to `https://chatgpt.com/backend-api/codex`; the proxy has
 no LLM API key and preserves the caller's upstream credential.
 

@@ -31,6 +31,14 @@ class InstallerChecks(unittest.TestCase):
                     (project / name).write_text('Team instructions: leave exactly unchanged.\n')
             def snapshot():
                 return {str(p.relative_to(project)): p.read_bytes() for p in project.rglob('*') if p.is_file()}
+            if fault == 'invalid-json':
+                hook_config.parent.mkdir(parents=True, exist_ok=True)
+                hook_config.write_text('{"secret": "existing-private-key", broken}')
+            if fault == 'invalid-toml':
+                (project / '.codex').mkdir(exist_ok=True)
+                (project / '.codex/config.toml').write_text('token = "existing-private-key"\nbroken = [')
+            if fault == 'symlink':
+                (project / '.gitignore').symlink_to(project / 'ignore-target')
             before_files = snapshot()
             calls = []
             prompt_seen = []
@@ -39,6 +47,8 @@ class InstallerChecks(unittest.TestCase):
                        MI_TEAM='team-1', MI_AGENT='agent-1', MI_MCP='y',
                        MI_MCP_URL='http://knowledge.test/mcp', MI_SERVICE='default', MI_SERVICE_KEY='knowledge-secret')
             env['MI_HOOKS'] = 'y' if hooks else 'n'
+            if fault == 'invalid-url':
+                env['MI_PROXY'] = 'http://user:user-secret@proxy.test'
 
             class Response(io.BytesIO):
                 pass
@@ -119,6 +129,15 @@ class InstallerChecks(unittest.TestCase):
                             self.assertEqual((project / name).read_text(), 'Team instructions: leave exactly unchanged.\n')
             finally:
                 os.chdir(previous)
+            expected_errors = {
+                'invalid-json': ('.codex/hooks.json: invalid JSON at line 1, column',),
+                'invalid-toml': ('.codex/config.toml: invalid TOML at',),
+                'symlink': ('Refusing symlink .gitignore',),
+                'invalid-url': ('PROXY must be an HTTP(S) URL without credentials',),
+            }
+            for expected in expected_errors.get(fault, ()):
+                self.assertIn(expected, output.getvalue())
+            self.assertNotIn('existing-private-key', output.getvalue())
             self.assertNotIn('user-secret', output.getvalue())
             self.assertNotIn('gateway-secret', output.getvalue())
             self.assertNotIn('knowledge-secret', output.getvalue())
@@ -149,6 +168,15 @@ class InstallerChecks(unittest.TestCase):
     def test_hook_install_decline_preserves_existing_files(self):
         status, _, _, _ = self.run_install(client='claude', hooks=True, existing=True, approve='n\n')
         self.assertEqual(status, 0)
+
+    def test_setup_errors_explain_cause_without_exposing_secrets(self):
+        for fault in ('invalid-json', 'invalid-toml', 'symlink', 'invalid-url'):
+            with self.subTest(fault=fault):
+                status, written, prompts, calls = self.run_install(fault=fault, hooks=True)
+                self.assertEqual(status, 1)
+                self.assertFalse(written)
+                self.assertFalse(prompts)
+                self.assertFalse(calls)
 
     def test_failures_never_prompt_or_write(self):
         for fault in ('health', 'invalid-key', 'membership', 'team-mismatch', 'mcp'):

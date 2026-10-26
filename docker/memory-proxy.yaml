@@ -6,7 +6,6 @@ server:
   forwardTimeoutMs: 600000
 
 upstream:
-  # Compose can override the URL with PROXY_UPSTREAM_URL via --upstream.
   url: https://chatgpt.com/backend-api/codex
   apiKey: ""
   agents:

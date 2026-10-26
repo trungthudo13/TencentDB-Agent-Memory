@@ -283,17 +283,38 @@ if __name__ == '__main__':
         sys.exit(2)
 '''
 
+class SetupError(ValueError):
+    """An actionable diagnostic authored by the installer, without config values."""
+
+
+def parse_config(path, content, kind):
+    try:
+        return json.loads(content) if kind == 'JSON' else tomllib.loads(content)
+    except (json.JSONDecodeError, tomllib.TOMLDecodeError) as exc:
+        if kind == 'JSON':
+            location = f'line {exc.lineno}, column {exc.colno}'
+        else:
+            # Older Python versions expose TOML positions only in the message.
+            match = re.search(r'\(at (line \d+, column \d+|end of document)\)$', str(exc))
+            location = match.group(1) if match else 'unknown position'
+        raise SetupError(f'{path}: invalid {kind} at {location}. Fix the syntax and rerun.') from None
+
+
 def value(name):
     result = os.environ.get('MI_' + name, '')
     if any(ord(c) < 32 or ord(c) == 127 for c in result):
-        raise ValueError(f'{name} must not contain control characters')
+        raise SetupError(f'{name} must not contain control characters')
     return result
 
 def url(name):
     result = value(name).rstrip('/')
-    parts = urlsplit(result)
+    try:
+        parts = urlsplit(result)
+        parts.port  # Validate malformed/non-numeric ports before network checks.
+    except ValueError:
+        raise SetupError(f'{name} has an invalid URL host or port') from None
     if parts.scheme not in ('http', 'https') or not parts.hostname or parts.username or parts.password or parts.query or parts.fragment:
-        raise ValueError(f'{name} must be an HTTP(S) URL without credentials, query or fragment')
+        raise SetupError(f'{name} must be an HTTP(S) URL without credentials, query or fragment')
     return result
 
 # Emit parsed TOML values without extra packages; preserve existing settings,
@@ -306,7 +327,7 @@ def toml(v):
     if isinstance(v, float): return str(v).lower()
     if isinstance(v, list): return '[' + ', '.join(toml(x) for x in v) + ']'
     if isinstance(v, dict): return '{ ' + ', '.join(toml(k) + ' = ' + toml(x) for k, x in v.items()) + ' }'
-    raise ValueError('Unsupported existing TOML value')
+    raise SetupError('Unsupported existing TOML value')
 
 def toml_document(data):
     """Write readable TOML sections, retaining inline tables only inside arrays."""
@@ -326,8 +347,8 @@ def toml_document(data):
     return '\n'.join(lines) + '\n'
 
 def read_json(path):
-    data = json.loads(path.read_text()) if path.exists() else {}
-    if not isinstance(data, dict): raise ValueError(f'{path} must contain an object')
+    data = parse_config(path, path.read_text(), 'JSON') if path.exists() else {}
+    if not isinstance(data, dict): raise SetupError(f'{path} must contain an object')
     return data
 
 def encoded(data): return json.dumps(data, indent=2, ensure_ascii=False) + '\n'
@@ -429,24 +450,24 @@ try:
         profile = slug + '-memory'
         codex_dir = Path.home() / '.codex'
         if os.environ.get('CODEX_HOME') and Path(os.environ['CODEX_HOME']).expanduser().resolve() != codex_dir.resolve():
-            raise ValueError('Unset custom CODEX_HOME before installing a profile in ~/.codex')
+            raise SetupError('Unset custom CODEX_HOME before installing a profile in ~/.codex')
         path = codex_dir / (profile + '.config.toml')
         owner = '# Memory installer project: ' + json.dumps(str(Path.cwd()))
         original = path.read_text() if path.exists() else ''
-        data = tomllib.loads(original) if original else {}
+        data = parse_config(path, original, 'TOML') if original else {}
         data.update(model_provider='memory_proxy')
         provider = data.setdefault('model_providers', {}).setdefault('memory_proxy', {})
         provider.update(name='Local MemoryProxy', base_url=proxy + '/codex/' + space + '/v1', wire_api='responses', requires_openai_auth=True, supports_websockets=False, stream_idle_timeout_ms=120000)
         provider.setdefault('http_headers', {}).update(headers)
         content = owner + '\n' + toml_document(data)
-        tomllib.loads(content)
+        parse_config(path, content, 'TOML')
         files.append((path, content, 0o600))
         if use_mcp:
             path = Path('.codex/config.toml')
-            data = tomllib.loads(path.read_text()) if path.exists() else {}
+            data = parse_config(path, path.read_text(), 'TOML') if path.exists() else {}
             data.setdefault('mcp_servers', {})['memory_knowledge'] = {'url': mcp_url, 'http_headers': mcp_headers}
             content = toml_document(data)
-            tomllib.loads(content)
+            parse_config(path, content, 'TOML')
             files.append((path, content, 0o600))
     if value('CLIENT') == 'claude':
         path = Path('.claude/settings.json')
@@ -480,7 +501,7 @@ try:
         policy_path = Path('.memory-hub/context.toml')
         if policy_path.exists():
             # User-owned policy is never replaced on upgrade, including comments.
-            tomllib.loads(policy_path.read_text())
+            parse_config(policy_path, policy_path.read_text(), 'TOML')
             results.append(('Kept', str(policy_path) + ' (user-owned policy)'))
         else:
             files.append((policy_path, '''# Add asset IDs from Memory Hub here, then send a new prompt.
@@ -502,7 +523,7 @@ order = ["code", "wiki"]
         hooks = config.setdefault('hooks', {})
         for event in ('SessionStart', 'UserPromptSubmit', 'SubagentStart', 'PreToolUse', 'PostToolUse'):
             groups = hooks.setdefault(event, [])
-            if not isinstance(groups, list): raise ValueError('Invalid hooks configuration')
+            if not isinstance(groups, list): raise SetupError(f'{config_path}: hooks.{event} must be an array')
             kept = []
             for group in groups:
                 handlers = group.get('hooks', [])
@@ -520,7 +541,7 @@ order = ["code", "wiki"]
     # Validate all existing configs before writing. Exclude secrets and backups
     # even when this directory is not yet a Git repository.
     ignore = Path('.gitignore')
-    if ignore.is_symlink(): raise ValueError('Refusing symlink .gitignore')
+    if ignore.is_symlink(): raise SetupError('Refusing symlink .gitignore')
     old_ignore = ignore.read_text() if ignore.exists() else ''
     patterns = ['/' + str(p) + suffix for p, _, _ in files if not p.is_absolute() for suffix in ('', '.bak.*')]
     if use_hooks: patterns.append('/.memory-hub/')
@@ -528,10 +549,10 @@ order = ["code", "wiki"]
     # Ignoring a tracked credential file does not protect it: fail before writes.
     for path, _, _ in files:
         if not path.is_absolute() and shutil.which('git') and subprocess.run(['git', 'ls-files', '--error-unmatch', '--', str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
-            raise ValueError(f'{path} is tracked by Git; untrack it before installing private configuration')
+            raise SetupError(f'{path} is tracked by Git; untrack it before installing private configuration')
     for path, _, _ in files:
         if path.is_symlink() or any(p.is_symlink() for p in path.parents):
-            raise ValueError(f'Refusing symlink destination: {path}')
+            raise SetupError(f'Refusing symlink destination: {path}')
     # Network checks and approval happen before the first filesystem mutation.
     preflight(proxy, mcp_url, mcp_headers, use_mcp)
     print('\n  READY TO INSTALL\n  ----------------------------------------')
@@ -636,8 +657,22 @@ except (ValueError, TypeError, AttributeError, OSError) as exc:
     # Parse errors may contain source text; never print potentially secret input.
     sys.stdout.flush()
     print('\n  SETUP FAILED\n  ----------------------------------------', file=sys.stderr)
-    print('  ' + type(exc).__name__ + ': configuration could not be completed.', file=sys.stderr)
-    print('  Check URLs, JSON/TOML syntax, file permissions, symlinks and tracked config files.', file=sys.stderr)
+    if isinstance(exc, SetupError):
+        detail = str(exc)
+    elif isinstance(exc, OSError):
+        detail = f'{exc.filename or "Filesystem operation"}: {exc.strerror or "I/O failed"} (errno {exc.errno})'
+    else:
+        # Unexpected library errors can embed config values. Show code location only.
+        tb = exc.__traceback__
+        while tb.tb_next:
+            tb = tb.tb_next
+        detail = f'Configuration processing failed in {tb.tb_frame.f_code.co_name}, embedded Python line {tb.tb_lineno}. Check configuration field types.'
+    for name in ('MI_USER_KEY', 'MI_CORE_KEY', 'MI_SERVICE_KEY'):
+        secret = os.environ.get(name)
+        if secret:
+            detail = detail.replace(secret, '[REDACTED]')
+    detail = ''.join(c if c.isprintable() else ' ' for c in detail)
+    print('  ' + type(exc).__name__ + ': ' + detail, file=sys.stderr)
     raise SystemExit(1)
 PY
 

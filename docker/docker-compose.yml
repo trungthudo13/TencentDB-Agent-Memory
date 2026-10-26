@@ -134,8 +134,6 @@ services:
     command:
       - --config
       - /data/config.yaml
-      - --upstream
-      - ${PROXY_UPSTREAM_URL:-https://chatgpt.com/backend-api/codex}
     volumes:
       - ./memory-proxy.yaml:/data/config.yaml:ro
       - proxy-data:/data/tdai-memory-proxy
